@@ -58,7 +58,7 @@ INFLUENCE_WEIGHTS = {
 TRUST_LOW_THRESHOLD = 60
 TRUST_HIGH_THRESHOLD = 80
 INFLUENCE_LOW_THRESHOLD = 30
-INFLUENCE_HIGH_THRESHOLD = 70
+INFLUENCE_HIGH_THRESHOLD = 50
 
 
 # ---------------------------------------------------------------------------
@@ -930,8 +930,16 @@ def run_pipeline(
     review_citation_pct = compute_citation_percentile(review_citations)
     merged["citation_percentile"] = merged["review_id"].map(review_citation_pct).fillna(50.0)
 
-    # WHO Essential Medicines — placeholder (needs intervention text)
-    merged["who_essential"] = False
+    # WHO Essential Medicines — load pre-computed matches from build_enrichment.py
+    who_matches_path = DATA_DIR / "who_matches.json"
+    if who_matches_path.exists():
+        with open(who_matches_path, "r") as f:
+            who_matches = json.load(f)
+        merged["who_essential"] = merged["review_id"].map(
+            lambda rid: who_matches.get(rid, False)
+        )
+    else:
+        merged["who_essential"] = False
 
     # NICE guideline counts (MVP: returns 0 for all)
     nice_counts = fetch_nice_guideline_counts(unique_dois)

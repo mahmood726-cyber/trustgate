@@ -538,30 +538,30 @@ def test_who_match_none():
 
 def test_assign_quadrant():
     """T19: Each quadrant boundary maps to the correct label."""
-    # Red Flag: trust < 60 AND influence > 70
-    assert assign_quadrant(45, 85) == "Red Flag", (
-        f"Expected 'Red Flag' for trust=45, influence=85, "
-        f"got '{assign_quadrant(45, 85)}'"
+    # Red Flag: trust < 60 AND influence > 50
+    assert assign_quadrant(45, 55) == "Red Flag", (
+        f"Expected 'Red Flag' for trust=45, influence=55, "
+        f"got '{assign_quadrant(45, 55)}'"
     )
     # Hidden Gem: trust >= 80 AND influence < 30
     assert assign_quadrant(90, 20) == "Hidden Gem", (
         f"Expected 'Hidden Gem' for trust=90, influence=20, "
         f"got '{assign_quadrant(90, 20)}'"
     )
-    # Safe: trust >= 80 AND influence >= 70
-    assert assign_quadrant(90, 85) == "Safe", (
-        f"Expected 'Safe' for trust=90, influence=85, "
-        f"got '{assign_quadrant(90, 85)}'"
+    # Safe: trust >= 80 AND influence > 50
+    assert assign_quadrant(90, 55) == "Safe", (
+        f"Expected 'Safe' for trust=90, influence=55, "
+        f"got '{assign_quadrant(90, 55)}'"
     )
     # Low Stakes: trust < 60 AND influence < 30
     assert assign_quadrant(45, 20) == "Low Stakes", (
         f"Expected 'Low Stakes' for trust=45, influence=20, "
         f"got '{assign_quadrant(45, 20)}'"
     )
-    # Moderate: middle zone (trust=70, influence=50)
-    assert assign_quadrant(70, 50) == "Moderate", (
-        f"Expected 'Moderate' for trust=70, influence=50, "
-        f"got '{assign_quadrant(70, 50)}'"
+    # Moderate: middle zone (trust=70, influence=40)
+    assert assign_quadrant(70, 40) == "Moderate", (
+        f"Expected 'Moderate' for trust=70, influence=40, "
+        f"got '{assign_quadrant(70, 40)}'"
     )
 
 
@@ -574,7 +574,7 @@ def test_build_risk_register():
     df = pd.DataFrame({
         "ma_id": ["MA_RF", "MA_HG", "MA_SA", "MA_LS", "MA_MO"],
         "final_score":    [45,  90,  90,  45,  70],   # trust proxy
-        "influence_score":[85,  20,  85,  20,  50],   # influence proxy
+        "influence_score":[55,  20,  55,  20,  40],   # influence proxy (threshold=50)
     })
 
     result = build_risk_register(df)

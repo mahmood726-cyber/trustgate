@@ -1,0 +1,24 @@
+{
+  "total_mas": 6229,
+  "total_reviews": 501,
+  "total_significant": 888,
+  "erosion_rate_at_70": 63.85135135135135,
+  "red_flag_count": 104,
+  "hidden_gem_count": 366,
+  "mean_trust_score": 65.49397977203404,
+  "mean_influence_score": 29.091253998665056,
+  "quadrant_counts": {
+    "Moderate": 4594,
+    "Low Stakes": 1131,
+    "Hidden Gem": 366,
+    "Red Flag": 104,
+    "Safe": 34
+  },
+  "erosion_thresholds": [
+    50,
+    60,
+    70,
+    80,
+    90
+  ]
+}
