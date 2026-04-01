@@ -34,6 +34,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
+RESULTS_DIR = BASE_DIR / "results"
+CITATION_CACHE = DATA_DIR / "citation_cache.json"
 
 SCORES_CSV = r"C:\Models\EvidenceScore\results\scores.csv"
 VERDICTS_CSV = r"C:\Models\ActionableEvidence\results\verdicts.csv"
@@ -240,8 +242,9 @@ def _z_from_p(p: float) -> float:
     """
     import math
 
-    # Clamp to avoid log(0)
-    p = max(1e-300, min(p, 1.0 - 1e-15))
+    # Clamp to avoid log(0); lower bound must keep t_val > 0 in float64
+    # (1e-300 / 2 underflows to 0 relative to 1.0, so we use 1e-15 minimum)
+    p = max(1e-15, min(p, 1.0 - 1e-15))
     # One-sided tail probability
     t_val = p / 2.0
     # We need the upper-tail quantile, so work with 1 - t_val
@@ -255,7 +258,11 @@ def _z_from_p(p: float) -> float:
         sign = -1.0
         arg = 1.0 - q
 
-    t = math.sqrt(-2.0 * math.log(1.0 - arg))
+    inner = 1.0 - arg
+    if inner <= 0.0:
+        # Extreme p-value — return a very large z directly
+        return 37.5
+    t = math.sqrt(-2.0 * math.log(inner))
     # Rational approximation coefficients from A&S 26.2.23
     c0, c1, c2 = 2.515517, 0.802853, 0.010328
     d1, d2, d3 = 1.432788, 0.189269, 0.001308
@@ -819,3 +826,276 @@ def build_risk_register(df: pd.DataFrame) -> pd.DataFrame:
         for _, row in result.iterrows()
     ]
     return result
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline
+# ---------------------------------------------------------------------------
+
+def run_pipeline(
+    scores_path=None,
+    verdicts_path=None,
+    dois_path=None,
+    fetch_citations=True,
+) -> dict:
+    """Execute the full TrustGate pipeline end-to-end.
+
+    Steps
+    -----
+    1. Load data: scores, verdicts, DOIs.
+    2. Merge into a single analysis-ready DataFrame.
+    3. Part A — Erosion: overall erosion curve + domain erosion.
+    4. Part B — Influence: citation counts, WHO/NICE lookups, influence score.
+    5. Build risk register with quadrant labels.
+    6. Assemble summary dict.
+
+    Parameters
+    ----------
+    scores_path : str or None
+        Path to scores CSV.  Defaults to ``SCORES_CSV``.
+    verdicts_path : str or None
+        Path to verdicts CSV.  Defaults to ``VERDICTS_CSV``.
+    dois_path : str or None
+        Path to DOIs CSV.  Defaults to ``DOIS_CSV``.
+    fetch_citations : bool
+        If True and DOIs are available, fetch citation counts from PubMed.
+        If False (or no DOIs), load from ``CITATION_CACHE`` if it exists, else
+        use empty dict (all citation counts = 0).
+
+    Returns
+    -------
+    dict
+        Keys:
+        - ``merged``        : pd.DataFrame — all MAs with all computed columns
+        - ``erosion_curve`` : pd.DataFrame — overall erosion curve
+        - ``domain_erosion``: pd.DataFrame — per-domain erosion
+        - ``risk_register`` : pd.DataFrame — merged + quadrant column
+        - ``summary``       : dict — headline statistics
+    """
+    # ------------------------------------------------------------------ #
+    # Step 1: Load
+    # ------------------------------------------------------------------ #
+    scores_df = load_scores(path=scores_path)
+    verdicts_df = load_verdicts(path=verdicts_path)
+    dois_df = load_dois(path=dois_path)
+
+    # ------------------------------------------------------------------ #
+    # Step 2: Merge
+    # ------------------------------------------------------------------ #
+    merged = merge_data(scores_df, verdicts_df, dois_df)
+
+    # ------------------------------------------------------------------ #
+    # Step 3: Part A — Erosion
+    # ------------------------------------------------------------------ #
+    erosion_curve = compute_erosion_curve(merged)
+
+    # Domain erosion: join review_groups if available
+    review_groups = load_review_groups()
+    if not review_groups.empty:
+        merged = pd.merge(
+            merged,
+            review_groups.rename(columns={"review_id_prefix": "review_id"}),
+            on="review_id",
+            how="left",
+        )
+    domain_erosion = compute_domain_erosion(merged)
+
+    # ------------------------------------------------------------------ #
+    # Step 4: Part B — Influence
+    # ------------------------------------------------------------------ #
+    unique_dois = [d for d in merged["doi"].dropna().unique().tolist() if d]
+
+    # Citation counts
+    if fetch_citations and unique_dois:
+        citation_counts = fetch_citation_counts(unique_dois)
+    else:
+        # Try loading from cache, otherwise default to zeros
+        if CITATION_CACHE.exists():
+            try:
+                with open(CITATION_CACHE, "r", encoding="utf-8") as fh:
+                    citation_counts = json.load(fh)
+            except Exception:
+                citation_counts = {}
+        else:
+            citation_counts = {}
+
+    # Map citation counts to merged rows (default 0 for missing)
+    merged["citation_count"] = merged["doi"].map(citation_counts).fillna(0).astype(int)
+
+    # Compute citation percentile per review (one citation_count per review_id)
+    review_citations = (
+        merged.groupby("review_id")["citation_count"]
+        .first()
+    )
+    review_citation_pct = compute_citation_percentile(review_citations)
+    merged["citation_percentile"] = merged["review_id"].map(review_citation_pct).fillna(50.0)
+
+    # WHO Essential Medicines — placeholder (needs intervention text)
+    merged["who_essential"] = False
+
+    # NICE guideline counts (MVP: returns 0 for all)
+    nice_counts = fetch_nice_guideline_counts(unique_dois)
+    merged["nice_guideline_count"] = merged["doi"].map(nice_counts).fillna(0).astype(int)
+
+    # Group size percentile
+    group_sizes = merged.groupby("review_id").size()
+    group_size_pct = compute_citation_percentile(group_sizes)
+    merged["group_size_percentile"] = merged["review_id"].map(group_size_pct).fillna(50.0)
+
+    # Compute influence score row-by-row
+    merged["influence_score"] = merged.apply(
+        lambda row: compute_influence_score(
+            citation_percentile=row["citation_percentile"],
+            who_essential=bool(row["who_essential"]),
+            nice_guideline_count=int(row["nice_guideline_count"]),
+            group_size_percentile=row["group_size_percentile"],
+        ),
+        axis=1,
+    )
+
+    # ------------------------------------------------------------------ #
+    # Step 5: Risk register
+    # ------------------------------------------------------------------ #
+    risk_register = build_risk_register(merged)
+
+    # ------------------------------------------------------------------ #
+    # Step 6: Summary
+    # ------------------------------------------------------------------ #
+    total_mas = len(merged)
+    total_reviews = merged["review_id"].nunique()
+    total_significant = int(merged["significant"].sum()) if "significant" in merged.columns else 0
+
+    # erosion_rate at threshold=70
+    ec70 = erosion_curve[erosion_curve["threshold"] == 70]
+    erosion_rate_at_70 = float(ec70["erosion_rate"].iloc[0]) if len(ec70) > 0 else 0.0
+
+    # Quadrant counts
+    quadrant_counts: dict = {}
+    if "quadrant" in risk_register.columns:
+        quadrant_counts = risk_register["quadrant"].value_counts().to_dict()
+    red_flag_count = int(quadrant_counts.get("Red Flag", 0))
+    hidden_gem_count = int(quadrant_counts.get("Hidden Gem", 0))
+
+    mean_trust_score = float(merged["final_score"].mean()) if total_mas > 0 else 0.0
+    mean_influence_score = float(merged["influence_score"].mean()) if total_mas > 0 else 0.0
+
+    summary = {
+        "total_mas": total_mas,
+        "total_reviews": total_reviews,
+        "total_significant": total_significant,
+        "erosion_rate_at_70": erosion_rate_at_70,
+        "red_flag_count": red_flag_count,
+        "hidden_gem_count": hidden_gem_count,
+        "mean_trust_score": mean_trust_score,
+        "mean_influence_score": mean_influence_score,
+        "quadrant_counts": quadrant_counts,
+        "erosion_thresholds": EROSION_THRESHOLDS,
+    }
+
+    return {
+        "merged": merged,
+        "erosion_curve": erosion_curve,
+        "domain_erosion": domain_erosion,
+        "risk_register": risk_register,
+        "summary": summary,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Results saver
+# ---------------------------------------------------------------------------
+
+def save_results(pipeline_results: dict, output_dir=None) -> dict:
+    """Save all pipeline outputs to CSV and JSON files.
+
+    Files written
+    -------------
+    - ``risk_register.csv``   — full risk register with quadrant column
+    - ``erosion_curve.csv``   — overall erosion curve
+    - ``domain_erosion.csv``  — per-domain erosion statistics
+    - ``trust_weighted.csv``  — key columns subset for trust-weighted analysis
+    - ``guideline_exposure.csv`` — deduplicated per-review exposure table
+    - ``summary.json``        — headline summary statistics
+
+    Parameters
+    ----------
+    pipeline_results : dict
+        Output of :func:`run_pipeline`.
+    output_dir : str, Path, or None
+        Directory to write files into.  Defaults to ``RESULTS_DIR``.
+
+    Returns
+    -------
+    dict
+        The ``summary`` sub-dict from ``pipeline_results`` (for convenience).
+    """
+    out_dir = Path(output_dir) if output_dir is not None else RESULTS_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    merged = pipeline_results["merged"]
+    erosion_curve = pipeline_results["erosion_curve"]
+    domain_erosion = pipeline_results["domain_erosion"]
+    risk_register = pipeline_results["risk_register"]
+    summary = pipeline_results["summary"]
+
+    # Full risk register
+    risk_register.to_csv(out_dir / "risk_register.csv", index=False)
+
+    # Erosion curve
+    erosion_curve.to_csv(out_dir / "erosion_curve.csv", index=False)
+
+    # Domain erosion
+    domain_erosion.to_csv(out_dir / "domain_erosion.csv", index=False)
+
+    # trust_weighted.csv — subset of key columns
+    _trust_cols = [
+        "ma_id", "review_id", "final_score", "grade", "estimate", "p_value",
+        "significant", "k", "total_n", "doi", "citation_count",
+        "citation_percentile", "who_essential", "nice_guideline_count",
+        "influence_score", "quadrant",
+    ]
+    # Only include columns that exist in risk_register
+    tw_cols = [c for c in _trust_cols if c in risk_register.columns]
+    risk_register[tw_cols].to_csv(out_dir / "trust_weighted.csv", index=False)
+
+    # guideline_exposure.csv — one row per review_id
+    _exposure_cols = [
+        "review_id", "doi", "citation_count", "citation_percentile",
+        "who_essential", "nice_guideline_count", "influence_score",
+    ]
+    exp_cols = [c for c in _exposure_cols if c in risk_register.columns]
+    guideline_exposure = (
+        risk_register[exp_cols]
+        .drop_duplicates(subset="review_id")
+        .reset_index(drop=True)
+    )
+    guideline_exposure.to_csv(out_dir / "guideline_exposure.csv", index=False)
+
+    # Summary JSON
+    with open(out_dir / "summary.json", "w", encoding="utf-8") as fh:
+        json.dump(summary, fh, indent=2)
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# CLI entrypoint
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import sys
+
+    fetch = "--no-fetch" not in sys.argv
+    results = run_pipeline(fetch_citations=fetch)
+    summary = save_results(results)
+
+    print("TrustGate Pipeline Complete")
+    print(f"  Total MAs        : {summary['total_mas']}")
+    print(f"  Total Reviews    : {summary['total_reviews']}")
+    print(f"  Total Significant: {summary['total_significant']}")
+    print(f"  Erosion @ T=70   : {summary['erosion_rate_at_70']:.1f}%")
+    print(f"  Red Flags        : {summary['red_flag_count']}")
+    print(f"  Hidden Gems      : {summary['hidden_gem_count']}")
+    print(f"  Mean Trust Score : {summary['mean_trust_score']:.1f}")
+    print(f"  Mean Influence   : {summary['mean_influence_score']:.1f}")
+    print(f"  Quadrants        : {summary['quadrant_counts']}")

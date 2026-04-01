@@ -27,7 +27,9 @@ from trustgate_engine import (
     compute_citation_percentile, compute_influence_score,
     load_who_medicines, match_who_medicines, fetch_nice_guideline_counts,
     assign_quadrant, build_risk_register,
+    run_pipeline, save_results,
 )
+from trustgate_engine import SCORES_CSV as ENGINE_SCORES_CSV
 
 
 # ---------------------------------------------------------------------------
@@ -596,3 +598,174 @@ def test_build_risk_register():
     # Exactly one Red Flag
     red_flag_count = (result["quadrant"] == "Red Flag").sum()
     assert red_flag_count == 1, f"Expected 1 Red Flag row, got {red_flag_count}"
+
+
+# ---------------------------------------------------------------------------
+# T21: test_pipeline_fixture
+# ---------------------------------------------------------------------------
+
+def test_pipeline_fixture(tmp_path):
+    """T21: run_pipeline on fixture CSVs returns expected keys and 4 merged rows."""
+    # Write fixture CSVs to tmp_path
+    scores_path = tmp_path / "scores.csv"
+    verdicts_path = tmp_path / "verdicts.csv"
+    dois_path = tmp_path / "dois.csv"
+
+    scores_path.write_text(SCORES_CSV, encoding="utf-8")
+    verdicts_path.write_text(VERDICTS_CSV, encoding="utf-8")
+    dois_path.write_text(DOIS_CSV, encoding="utf-8")
+
+    results = run_pipeline(
+        scores_path=str(scores_path),
+        verdicts_path=str(verdicts_path),
+        dois_path=str(dois_path),
+        fetch_citations=False,
+    )
+
+    # Required keys present
+    for key in ("erosion_curve", "risk_register", "merged", "summary", "domain_erosion"):
+        assert key in results, f"Missing key '{key}' in pipeline results"
+
+    merged = results["merged"]
+    assert len(merged) == 4, f"Expected 4 rows in merged, got {len(merged)}"
+
+
+# ---------------------------------------------------------------------------
+# T22: test_score_clamping
+# ---------------------------------------------------------------------------
+
+def test_score_clamping(tmp_path):
+    """T22: influence_score in [0,100] and erosion_rate in [0,100]."""
+    scores_path = tmp_path / "scores.csv"
+    verdicts_path = tmp_path / "verdicts.csv"
+    dois_path = tmp_path / "dois.csv"
+
+    scores_path.write_text(SCORES_CSV, encoding="utf-8")
+    verdicts_path.write_text(VERDICTS_CSV, encoding="utf-8")
+    dois_path.write_text(DOIS_CSV, encoding="utf-8")
+
+    results = run_pipeline(
+        scores_path=str(scores_path),
+        verdicts_path=str(verdicts_path),
+        dois_path=str(dois_path),
+        fetch_citations=False,
+    )
+
+    rr = results["risk_register"]
+    assert rr["influence_score"].min() >= 0, (
+        f"influence_score min {rr['influence_score'].min()} < 0"
+    )
+    assert rr["influence_score"].max() <= 100, (
+        f"influence_score max {rr['influence_score'].max()} > 100"
+    )
+
+    ec = results["erosion_curve"]
+    assert ec["erosion_rate"].min() >= 0, (
+        f"erosion_rate min {ec['erosion_rate'].min()} < 0"
+    )
+    assert ec["erosion_rate"].max() <= 100, (
+        f"erosion_rate max {ec['erosion_rate'].max()} > 100"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T23: test_join_integrity
+# ---------------------------------------------------------------------------
+
+def test_join_integrity(tmp_path):
+    """T23: merged.final_score and merged.p_value have no NaN after pipeline."""
+    scores_path = tmp_path / "scores.csv"
+    verdicts_path = tmp_path / "verdicts.csv"
+    dois_path = tmp_path / "dois.csv"
+
+    scores_path.write_text(SCORES_CSV, encoding="utf-8")
+    verdicts_path.write_text(VERDICTS_CSV, encoding="utf-8")
+    dois_path.write_text(DOIS_CSV, encoding="utf-8")
+
+    results = run_pipeline(
+        scores_path=str(scores_path),
+        verdicts_path=str(verdicts_path),
+        dois_path=str(dois_path),
+        fetch_citations=False,
+    )
+
+    merged = results["merged"]
+    assert merged["final_score"].notna().all(), (
+        f"final_score has {merged['final_score'].isna().sum()} NaN value(s)"
+    )
+    assert merged["p_value"].notna().all(), (
+        f"p_value has {merged['p_value'].isna().sum()} NaN value(s)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T24: test_summary_consistency
+# ---------------------------------------------------------------------------
+
+def test_summary_consistency(tmp_path):
+    """T24: summary totals match fixture data (4 MAs, 3 significant, valid rates)."""
+    scores_path = tmp_path / "scores.csv"
+    verdicts_path = tmp_path / "verdicts.csv"
+    dois_path = tmp_path / "dois.csv"
+
+    scores_path.write_text(SCORES_CSV, encoding="utf-8")
+    verdicts_path.write_text(VERDICTS_CSV, encoding="utf-8")
+    dois_path.write_text(DOIS_CSV, encoding="utf-8")
+
+    results = run_pipeline(
+        scores_path=str(scores_path),
+        verdicts_path=str(verdicts_path),
+        dois_path=str(dois_path),
+        fetch_citations=False,
+    )
+
+    summary = results["summary"]
+
+    assert summary["total_mas"] == 4, (
+        f"Expected total_mas=4, got {summary['total_mas']}"
+    )
+    assert summary["total_significant"] == 3, (
+        f"Expected total_significant=3, got {summary['total_significant']}"
+    )
+    assert 0 <= summary["erosion_rate_at_70"] <= 100, (
+        f"erosion_rate_at_70 out of range: {summary['erosion_rate_at_70']}"
+    )
+    # quadrant_counts values must sum to total_mas (4)
+    qc_total = sum(summary["quadrant_counts"].values())
+    assert qc_total == 4, (
+        f"quadrant_counts total {qc_total} != total_mas 4. "
+        f"quadrant_counts={summary['quadrant_counts']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T25: test_integration_real_data
+# ---------------------------------------------------------------------------
+
+def test_integration_real_data():
+    """T25: Full pipeline on real data (skip if SCORES_CSV not found)."""
+    import os
+    from pathlib import Path
+
+    # Skip if the real scores file doesn't exist
+    if not Path(ENGINE_SCORES_CSV).exists():
+        pytest.skip(f"Real data not found: {ENGINE_SCORES_CSV}")
+
+    results = run_pipeline(fetch_citations=False)
+    merged = results["merged"]
+
+    assert len(merged) > 0, "No rows returned from real-data pipeline"
+
+    # All final_scores in valid range
+    assert merged["final_score"].between(0, 100).all(), (
+        "Some final_score values are outside [0, 100]"
+    )
+
+    # All grades are valid (non-null strings)
+    valid_grades = {"A+", "A", "B+", "B", "B-", "C+", "C", "C-", "D", "F"}
+    if "grade" in merged.columns:
+        actual_grades = set(merged["grade"].dropna().unique())
+        invalid_grades = actual_grades - valid_grades
+        assert not invalid_grades, (
+            f"Unexpected grade values: {invalid_grades}"
+        )
