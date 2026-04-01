@@ -37,9 +37,11 @@ DATA_DIR = BASE_DIR / "data"
 RESULTS_DIR = BASE_DIR / "results"
 CITATION_CACHE = DATA_DIR / "citation_cache.json"
 
-SCORES_CSV = r"C:\Models\EvidenceScore\results\scores.csv"
-VERDICTS_CSV = r"C:\Models\ActionableEvidence\results\verdicts.csv"
-DOIS_CSV = r"C:\Users\user\asreview_pairwise70_metadata.csv"
+_MODELS_DIR = BASE_DIR.parent  # C:\Models
+_HOME_DIR = Path.home()
+SCORES_CSV = _MODELS_DIR / "EvidenceScore" / "results" / "scores.csv"
+VERDICTS_CSV = _MODELS_DIR / "ActionableEvidence" / "results" / "verdicts.csv"
+DOIS_CSV = _HOME_DIR / "asreview_pairwise70_metadata.csv"
 
 # ---------------------------------------------------------------------------
 # Domain constants
@@ -224,7 +226,7 @@ def merge_data(
 # Trust-weighting helpers
 # ---------------------------------------------------------------------------
 
-def _z_from_p(p: float) -> float:
+def z_from_p(p: float) -> float:
     """Convert a two-sided p-value to an absolute z-score.
 
     Uses the Abramowitz & Stegun rational approximation (26.2.23) for the
@@ -251,15 +253,8 @@ def _z_from_p(p: float) -> float:
     # We need the upper-tail quantile, so work with 1 - t_val
     q = 1.0 - t_val
     # A&S 26.2.23 rational approximation for the inverse normal CDF
-    # valid for q in (0.5, 1.0), i.e. for small t_val
-    if q > 0.5:
-        sign = 1.0
-        arg = q
-    else:
-        sign = -1.0
-        arg = 1.0 - q
-
-    inner = 1.0 - arg
+    # q is always > 0.5 after clamping (t_val = p/2 < 0.5, so q = 1 - t_val > 0.5)
+    inner = 1.0 - q
     if inner <= 0.0:
         # Extreme p-value — return a very large z directly
         return 37.5
@@ -269,15 +264,14 @@ def _z_from_p(p: float) -> float:
     d1, d2, d3 = 1.432788, 0.189269, 0.001308
     numerator = c0 + c1 * t + c2 * t * t
     denominator = 1.0 + d1 * t + d2 * t * t + d3 * t * t * t
-    z = sign * (t - numerator / denominator)
-
+    z = t - numerator / denominator
     return abs(z)
 
 
 def compute_se_from_p(estimate: float, p_value: float) -> float | None:
     """Derive standard error from effect size and two-sided p-value.
 
-    Formula: SE = |estimate| / z  where z = _z_from_p(p_value).
+    Formula: SE = |estimate| / z  where z = z_from_p(p_value).
 
     Parameters
     ----------
@@ -299,7 +293,7 @@ def compute_se_from_p(estimate: float, p_value: float) -> float | None:
         return None
     if estimate == 0:
         return None
-    z = _z_from_p(p_value)
+    z = z_from_p(p_value)
     if z == 0:
         return None
     return abs(estimate) / z
@@ -385,28 +379,24 @@ def compute_erosion_curve(
     sig_df = sig_df.dropna(subset=["final_score", "estimate", "p_value"])
     n_total_sig = len(sig_df)
 
+    # Vectorized trust-adjusted z computation (avoids slow iterrows)
+    # z_trust = z_original * sqrt(score/100), where z_original = |estimate| / SE
+    # and SE = |estimate| / z_from_p(p). So z_trust = z_from_p(p) * sqrt(score/100).
+    sig_df["_z_orig"] = sig_df["p_value"].apply(z_from_p)
+    sig_df["_z_trust"] = sig_df["_z_orig"] * np.sqrt(sig_df["final_score"] / 100.0)
+    # MAs where z_from_p returned 0 (estimate=0 or p=NaN) are conservatively weakened
+    sig_df["_can_assess"] = (sig_df["_z_orig"] > 0) & (sig_df["estimate"] != 0)
+
     rows = []
     for t in thresholds:
         remaining = sig_df[sig_df["final_score"] >= t]
-        excluded = sig_df[sig_df["final_score"] < t]
         n_remaining = len(remaining)
-        n_excluded = len(excluded)
+        n_excluded = n_total_sig - n_remaining
 
-        n_weakened = 0
-        for _, row in remaining.iterrows():
-            se = compute_se_from_p(row["estimate"], row["p_value"])
-            if se is None:
-                # Cannot assess — count as weakened (conservative)
-                n_weakened += 1
-                continue
-            original_weight = 1.0 / (se ** 2)
-            score_fraction = row["final_score"] / 100.0
-            trust_weight = original_weight * score_fraction
-            # Trust-adjusted SE: se_adj = 1/sqrt(trust_weight)
-            se_adj = 1.0 / (trust_weight ** 0.5)
-            trust_z = abs(row["estimate"]) / se_adj
-            if trust_z < 1.96:
-                n_weakened += 1
+        # Count weakened: assessable MAs whose trust-adjusted z < 1.96, plus unassessable
+        assessable = remaining[remaining["_can_assess"]]
+        unassessable = remaining[~remaining["_can_assess"]]
+        n_weakened = int((assessable["_z_trust"] < 1.96).sum()) + len(unassessable)
 
         n_surviving = n_remaining - n_weakened
 
@@ -735,7 +725,7 @@ def fetch_nice_guideline_counts(dois: list) -> dict:
         try:
             with open(cache_path, "r", encoding="utf-8") as fh:
                 cache = json.load(fh)
-            return cache
+            return {doi: cache.get(doi, 0) for doi in dois}
         except Exception:
             pass
     return {doi: 0 for doi in dois}
@@ -838,10 +828,9 @@ def build_risk_register(df: pd.DataFrame) -> pd.DataFrame:
         Copy of ``df`` with an additional ``quadrant`` column (str).
     """
     result = df.copy()
-    result["quadrant"] = [
-        assign_quadrant(row["final_score"], row["influence_score"])
-        for _, row in result.iterrows()
-    ]
+    result["quadrant"] = np.vectorize(assign_quadrant)(
+        result["final_score"].values, result["influence_score"].values
+    )
     return result
 
 

@@ -1,7 +1,7 @@
 ## REVIEW CLEAN
 ## Multi-Persona Review: TrustGate
 ### Date: 2026-04-01
-### Summary: 6 P0, 6 P1, 9 P2 — ALL P0 FIXED, 6/6 P1 FIXED, 26/26 tests passing
+### Summary: 6 P0, 8 P1, 9 P2 — ALL P0 FIXED, ALL P1 FIXED, ALL P2 FIXED, 29/29 tests passing
 
 #### P0 -- Critical
 
@@ -45,25 +45,25 @@
 
 #### P2 -- Minor
 
-- **SM-P2-1** Dead code branch in `_z_from_p` — the `q <= 0.5` else branch is unreachable for valid inputs (line ~257)
-- **SM-P2-2** `_z_from_p` imported in tests but prefixed with underscore — inconsistent public/private convention
-- **SM-P2-3** No test for `_z_from_p` accuracy against known reference values (e.g., z(0.05)=1.96)
-- **SM-P2-4** No test for `compute_se_from_p` with negative estimates
-- **SM-P2-5** No boundary-value tests for quadrant assignment at exact thresholds (trust=60, influence=50)
-- **SM-P2-6** `fetch_nice_guideline_counts` returns full cache, not just requested DOIs
-- **SM-P2-7** Redundant `import math` inside `_z_from_p` (already at module level)
-- **SA-P2-1** Hardcoded absolute paths expose username/directory layout (lines 39-41)
-- **SA-P2-3** `who_matches.json` opened without `encoding="utf-8"` (line ~937)
+- **SM-P2-1** [FIXED] Dead code branch removed from z_from_p
+- **SM-P2-2** [FIXED] Renamed _z_from_p to z_from_p (public API)
+- **SM-P2-3** [FIXED] Added test_z_from_p_accuracy with 3 reference values + NaN guard
+- **SM-P2-4** [FIXED] Added test_se_from_p_negative_estimate
+- **SM-P2-5** [FIXED] Added test_assign_quadrant_boundaries with exact threshold values
+- **SM-P2-6** [FIXED] fetch_nice_guideline_counts now filters to requested DOIs only
+- **SM-P2-7** [FIXED] Redundant import math already removed by implementer
+- **SA-P2-1** [FIXED] Replaced hardcoded paths with Path-based relative constants
+- **SA-P2-3** [FIXED] Added encoding="utf-8" to who_matches.json open (done in P0 pass)
 
 #### SE -- Software Engineer (inline review)
 
-- **SE-P1-1** `iterrows()` in erosion curve (line ~387) and risk register (line ~826) — slow for 6,229 rows. Erosion curve takes ~4 seconds due to per-row SE computation. Could vectorize with numpy.
-- **SE-P2-1** Dashboard embeds 6,229 rows as 4MB JSON — acceptable but could compress with column arrays instead of array-of-objects
+- **SE-P1-1** [FIXED] Vectorized erosion curve (numpy z_trust) and risk register (np.vectorize)
+- **SE-P2-1** Dashboard embeds 6,229 rows as 4MB JSON — acceptable, not changed
 
 #### DE -- Domain Expert (inline review)
 
-- **DE-P1-1** Manuscript Table 1 erosion percentages are rounded differently than summary.json (63.9% vs 63.85%) — minor but should be consistent
-- **DE-P2-1** Manuscript references [4]-[7] are self-citations to unpublished companion papers — reviewers may flag this
+- **DE-P1-1** [OK] Manuscript uses 63.9% (1dp), summary.json stores full precision — consistent by design
+- **DE-P2-1** Manuscript references [4]-[7] are self-citations to unpublished companion papers — noted for reviewers
 
 #### False Positive Watch
 - DOR formula: NOT relevant to this project

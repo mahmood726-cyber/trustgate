@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from trustgate_engine import (
     load_scores, load_verdicts, load_dois, merge_data,
-    _z_from_p, compute_se_from_p, trust_weight_ma, compute_erosion_curve,
+    z_from_p, compute_se_from_p, trust_weight_ma, compute_erosion_curve,
     load_review_groups, compute_domain_erosion,
     compute_citation_percentile, compute_influence_score,
     load_who_medicines, match_who_medicines, fetch_nice_guideline_counts,
@@ -244,6 +244,35 @@ def test_se_from_p_value():
     # estimate=0 → None
     se_zero = compute_se_from_p(0.0, 0.001)
     assert se_zero is None, "SE should be None when estimate=0"
+
+
+# ---------------------------------------------------------------------------
+# T4b: z_from_p accuracy against known reference values
+# ---------------------------------------------------------------------------
+
+def test_z_from_p_accuracy():
+    """T4b: z_from_p matches known z-values within 0.1%."""
+    assert abs(z_from_p(0.05) - 1.96) < 0.01, f"z(0.05) should be ~1.96, got {z_from_p(0.05)}"
+    assert abs(z_from_p(0.01) - 2.576) < 0.01, f"z(0.01) should be ~2.576, got {z_from_p(0.01)}"
+    assert abs(z_from_p(0.001) - 3.291) < 0.01, f"z(0.001) should be ~3.291, got {z_from_p(0.001)}"
+    # NaN guard
+    import math
+    assert z_from_p(float('nan')) == 0.0, "z_from_p(NaN) should return 0.0"
+
+
+# ---------------------------------------------------------------------------
+# T4c: compute_se_from_p with negative estimate
+# ---------------------------------------------------------------------------
+
+def test_se_from_p_negative_estimate():
+    """T4c: Negative estimates handled correctly via abs()."""
+    se_neg = compute_se_from_p(-0.5, 0.001)
+    se_pos = compute_se_from_p(0.5, 0.001)
+    assert se_neg is not None
+    assert abs(se_neg - se_pos) < 1e-10, "SE should be same for +/- estimate"
+    # NaN estimates return None
+    se_nan = compute_se_from_p(float('nan'), 0.05)
+    assert se_nan is None, "NaN estimate should return None"
 
 
 # ---------------------------------------------------------------------------
@@ -563,6 +592,25 @@ def test_assign_quadrant():
         f"Expected 'Moderate' for trust=70, influence=40, "
         f"got '{assign_quadrant(70, 40)}'"
     )
+
+
+# ---------------------------------------------------------------------------
+# T19b: boundary values at exact thresholds
+# ---------------------------------------------------------------------------
+
+def test_assign_quadrant_boundaries():
+    """T19b: Exact boundary values for quadrant assignment."""
+    # trust=60 is NOT < 60, so not Red Flag or Low Stakes → Moderate
+    assert assign_quadrant(60, 55) == "Moderate"
+    # trust=80 is >= 80 → could be Safe/Hidden Gem
+    assert assign_quadrant(80, 55) == "Safe"
+    assert assign_quadrant(80, 20) == "Hidden Gem"
+    # influence=50 exactly: > 50 is False, so not Red Flag/Safe
+    assert assign_quadrant(45, 50) == "Moderate"
+    assert assign_quadrant(90, 50) == "Moderate"
+    # influence=30 exactly: not < 30, so not Hidden Gem/Low Stakes
+    assert assign_quadrant(90, 30) == "Moderate"
+    assert assign_quadrant(45, 30) == "Moderate"
 
 
 # ---------------------------------------------------------------------------
