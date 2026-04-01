@@ -26,6 +26,7 @@ from trustgate_engine import (
     load_review_groups, compute_domain_erosion,
     compute_citation_percentile, compute_influence_score,
     load_who_medicines, match_who_medicines, fetch_nice_guideline_counts,
+    assign_quadrant, build_risk_register,
 )
 
 
@@ -527,3 +528,71 @@ def test_who_match_none():
     assert results["R1"] == False, (
         f"Expected False for 'cognitive behavioral therapy for depression', got {results['R1']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T19: assign_quadrant — all five quadrants
+# ---------------------------------------------------------------------------
+
+def test_assign_quadrant():
+    """T19: Each quadrant boundary maps to the correct label."""
+    # Red Flag: trust < 60 AND influence > 70
+    assert assign_quadrant(45, 85) == "Red Flag", (
+        f"Expected 'Red Flag' for trust=45, influence=85, "
+        f"got '{assign_quadrant(45, 85)}'"
+    )
+    # Hidden Gem: trust >= 80 AND influence < 30
+    assert assign_quadrant(90, 20) == "Hidden Gem", (
+        f"Expected 'Hidden Gem' for trust=90, influence=20, "
+        f"got '{assign_quadrant(90, 20)}'"
+    )
+    # Safe: trust >= 80 AND influence >= 70
+    assert assign_quadrant(90, 85) == "Safe", (
+        f"Expected 'Safe' for trust=90, influence=85, "
+        f"got '{assign_quadrant(90, 85)}'"
+    )
+    # Low Stakes: trust < 60 AND influence < 30
+    assert assign_quadrant(45, 20) == "Low Stakes", (
+        f"Expected 'Low Stakes' for trust=45, influence=20, "
+        f"got '{assign_quadrant(45, 20)}'"
+    )
+    # Moderate: middle zone (trust=70, influence=50)
+    assert assign_quadrant(70, 50) == "Moderate", (
+        f"Expected 'Moderate' for trust=70, influence=50, "
+        f"got '{assign_quadrant(70, 50)}'"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T20: build_risk_register — quadrant column on full DataFrame
+# ---------------------------------------------------------------------------
+
+def test_build_risk_register():
+    """T20: build_risk_register adds quadrant column, len=5, Red Flag count=1."""
+    df = pd.DataFrame({
+        "ma_id": ["MA_RF", "MA_HG", "MA_SA", "MA_LS", "MA_MO"],
+        "final_score":    [45,  90,  90,  45,  70],   # trust proxy
+        "influence_score":[85,  20,  85,  20,  50],   # influence proxy
+    })
+
+    result = build_risk_register(df)
+
+    # quadrant column must exist
+    assert "quadrant" in result.columns, "quadrant column missing from result"
+
+    # Length preserved
+    assert len(result) == 5, f"Expected 5 rows, got {len(result)}"
+
+    # Original DataFrame is not mutated
+    assert "quadrant" not in df.columns, "build_risk_register mutated the input DataFrame"
+
+    # Verify each quadrant label
+    assert result.loc[result["ma_id"] == "MA_RF", "quadrant"].iloc[0] == "Red Flag"
+    assert result.loc[result["ma_id"] == "MA_HG", "quadrant"].iloc[0] == "Hidden Gem"
+    assert result.loc[result["ma_id"] == "MA_SA", "quadrant"].iloc[0] == "Safe"
+    assert result.loc[result["ma_id"] == "MA_LS", "quadrant"].iloc[0] == "Low Stakes"
+    assert result.loc[result["ma_id"] == "MA_MO", "quadrant"].iloc[0] == "Moderate"
+
+    # Exactly one Red Flag
+    red_flag_count = (result["quadrant"] == "Red Flag").sum()
+    assert red_flag_count == 1, f"Expected 1 Red Flag row, got {red_flag_count}"
