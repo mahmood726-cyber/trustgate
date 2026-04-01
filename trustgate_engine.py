@@ -240,10 +240,11 @@ def _z_from_p(p: float) -> float:
     float
         Absolute z-score corresponding to ``p``.
     """
-    import math
+    # Guard against NaN — would silently produce extreme z via max(1e-15, NaN)
+    if p is None or (isinstance(p, float) and math.isnan(p)):
+        return 0.0
 
     # Clamp to avoid log(0); lower bound must keep t_val > 0 in float64
-    # (1e-300 / 2 underflows to 0 relative to 1.0, so we use 1e-15 minimum)
     p = max(1e-15, min(p, 1.0 - 1e-15))
     # One-sided tail probability
     t_val = p / 2.0
@@ -290,6 +291,12 @@ def compute_se_from_p(estimate: float, p_value: float) -> float | None:
     float or None
         Derived SE, or ``None`` if ``estimate == 0`` or ``z == 0``.
     """
+    # Guard NaN: pd.to_numeric(errors="coerce") produces NaN for unparseable values
+    if estimate is None or p_value is None:
+        return None
+    if (isinstance(estimate, float) and math.isnan(estimate)) or \
+       (isinstance(p_value, float) and math.isnan(p_value)):
+        return None
     if estimate == 0:
         return None
     z = _z_from_p(p_value)
@@ -325,7 +332,7 @@ def trust_weight_ma(
         return {
             "original_weight": 0.0,
             "trust_weight": 0.0,
-            "trust_weighted_estimate": 0.0,
+            "weighted_numerator": 0.0,
             "se": None,
         }
 
@@ -336,7 +343,7 @@ def trust_weight_ma(
     return {
         "original_weight": original_weight,
         "trust_weight": tw,
-        "trust_weighted_estimate": estimate * score_fraction,
+        "weighted_numerator": tw * estimate,  # numerator for IV pooling: w_i * theta_i
         "se": se,
     }
 
@@ -374,6 +381,8 @@ def compute_erosion_curve(
         thresholds = EROSION_THRESHOLDS
 
     sig_df = merged_df[merged_df["significant"] == True].copy()
+    # Drop rows with NaN in critical columns to prevent silent misclassification
+    sig_df = sig_df.dropna(subset=["final_score", "estimate", "p_value"])
     n_total_sig = len(sig_df)
 
     rows = []
@@ -545,8 +554,15 @@ def fetch_citation_counts(dois: list, cache_path=None) -> dict:
         except Exception:
             cache = {}
 
+    # Validate DOI format to prevent injection via malformed values
+    _doi_re = re.compile(r'^10\.\d{4,9}/[^\s\x00-\x1f]+$')
+
     results: dict = {}
-    needs_fetch = [d for d in dois if d not in cache]
+    needs_fetch = [d for d in dois if d not in cache and _doi_re.match(str(d))]
+    # Cache invalid DOIs as 0 so they're not re-attempted
+    for d in dois:
+        if d not in cache and not _doi_re.match(str(d)):
+            cache[d] = 0
 
     for doi in needs_fetch:
         try:
@@ -587,7 +603,8 @@ def fetch_citation_counts(dois: list, cache_path=None) -> dict:
 
             time.sleep(0.34)
 
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError,
+                ET.ParseError, OSError, ValueError, TimeoutError):
             cache[doi] = 0
 
     # Persist updated cache
@@ -800,7 +817,7 @@ def assign_quadrant(trust: float, influence: float) -> str:
         return "Red Flag"
     if trust >= TRUST_HIGH_THRESHOLD and influence < INFLUENCE_LOW_THRESHOLD:
         return "Hidden Gem"
-    if trust >= TRUST_HIGH_THRESHOLD and influence >= INFLUENCE_HIGH_THRESHOLD:
+    if trust >= TRUST_HIGH_THRESHOLD and influence > INFLUENCE_HIGH_THRESHOLD:
         return "Safe"
     if trust < TRUST_LOW_THRESHOLD and influence < INFLUENCE_LOW_THRESHOLD:
         return "Low Stakes"
@@ -933,7 +950,7 @@ def run_pipeline(
     # WHO Essential Medicines — load pre-computed matches from build_enrichment.py
     who_matches_path = DATA_DIR / "who_matches.json"
     if who_matches_path.exists():
-        with open(who_matches_path, "r") as f:
+        with open(who_matches_path, "r", encoding="utf-8") as f:
             who_matches = json.load(f)
         merged["who_essential"] = merged["review_id"].map(
             lambda rid: who_matches.get(rid, False)
@@ -1040,14 +1057,23 @@ def save_results(pipeline_results: dict, output_dir=None) -> dict:
     out_dir = Path(output_dir) if output_dir is not None else RESULTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    def _sanitize_csv(df):
+        """Prevent CSV formula injection: prepend ' to cells starting with =+@\\t\\r."""
+        result = df.copy()
+        for col in result.select_dtypes(include="object").columns:
+            result[col] = result[col].apply(
+                lambda v: "'" + v if isinstance(v, str) and v and v[0] in ('=', '+', '@', '\t', '\r') else v
+            )
+        return result
+
     merged = pipeline_results["merged"]
     erosion_curve = pipeline_results["erosion_curve"]
     domain_erosion = pipeline_results["domain_erosion"]
     risk_register = pipeline_results["risk_register"]
     summary = pipeline_results["summary"]
 
-    # Full risk register
-    risk_register.to_csv(out_dir / "risk_register.csv", index=False)
+    # Full risk register (sanitized for CSV formula injection)
+    _sanitize_csv(risk_register).to_csv(out_dir / "risk_register.csv", index=False)
 
     # Erosion curve
     erosion_curve.to_csv(out_dir / "erosion_curve.csv", index=False)

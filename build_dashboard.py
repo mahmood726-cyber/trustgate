@@ -53,11 +53,14 @@ def build_html(risk_register, erosion_curve, domain_erosion, summary):
     red_flag_count = summary.get("red_flag_count", 0)
     hidden_gem_count = summary.get("hidden_gem_count", 0)
 
-    # Embed data as JSON — limit register to avoid huge HTML for scatter
-    register_json = json.dumps(risk_register)
-    erosion_curve_json = json.dumps(erosion_curve)
-    domain_erosion_json = json.dumps(domain_erosion)
-    summary_json = json.dumps(summary)
+    # Embed data as JSON — escape </ to prevent </script> breaking the script block
+    def _safe_json(obj):
+        return json.dumps(obj).replace('</', '<\\/')
+
+    register_json = _safe_json(risk_register)
+    erosion_curve_json = _safe_json(erosion_curve)
+    domain_erosion_json = _safe_json(domain_erosion)
+    summary_json = _safe_json(summary)
 
     # Guideline data counts
     who_count = sum(1 for r in risk_register if r.get("who_essential", "").lower() == "true")
@@ -499,6 +502,12 @@ var TG_EROSION = {erosion_curve_json};
 var TG_DOMAIN = {domain_erosion_json};
 var TG_SUMMARY = {summary_json};
 
+// ── HTML escape helper (prevent XSS from CSV data) ───────────────────────
+function tgEsc(s) {{
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}}
+
 // ── Grade helpers ─────────────────────────────────────────────────────────
 function tgGradeClass(g) {{
     var m = {{'A+':'tg-grade-aplus','A':'tg-grade-a','B':'tg-grade-b',
@@ -745,12 +754,12 @@ function tgRenderRow(d, idx) {{
     var cit = parseInt(d.citation_count || 0);
     return '<tr>' +
         '<td style="color:#555;">' + (idx+1) + '</td>' +
-        '<td style="font-family:monospace;font-size:0.82rem;">' + (d.ma_id || '') + '</td>' +
-        '<td style="color:#8892b0;">' + (d.review_id || '') + '</td>' +
+        '<td style="font-family:monospace;font-size:0.82rem;">' + tgEsc(d.ma_id || '') + '</td>' +
+        '<td style="color:#8892b0;">' + tgEsc(d.review_id || '') + '</td>' +
         '<td><strong style="color:' + sc + '">' + score.toFixed(0) + '</strong></td>' +
-        '<td><span class="tg-grade ' + gc + '">' + (d.grade || '?') + '</span></td>' +
+        '<td><span class="tg-grade ' + gc + '">' + tgEsc(d.grade || '?') + '</span></td>' +
         '<td>' + inf + '</td>' +
-        '<td><span class="tg-quad ' + qc + '">' + (d.quadrant || 'Moderate') + '</span></td>' +
+        '<td><span class="tg-quad ' + qc + '">' + tgEsc(d.quadrant || 'Moderate') + '</span></td>' +
         '<td>' + cit + '</td>' +
     '</tr>';
 }}
