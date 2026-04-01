@@ -622,6 +622,101 @@ def compute_citation_percentile(citations: pd.Series) -> pd.Series:
     return citations.rank(pct=True) * 100.0
 
 
+# ---------------------------------------------------------------------------
+# WHO Essential Medicines matching
+# ---------------------------------------------------------------------------
+
+def load_who_medicines(path=None) -> pd.DataFrame:
+    """Load WHO Essential Medicines list from CSV.
+
+    Parameters
+    ----------
+    path : str, Path, or None
+        Path to who_medicines.csv.  Defaults to ``DATA_DIR / "who_medicines.csv"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: medicine_name, category.
+        Returns an empty DataFrame (with those columns) if the file is missing
+        or cannot be read.
+    """
+    csv_path = Path(path) if path is not None else DATA_DIR / "who_medicines.csv"
+    empty = pd.DataFrame(columns=["medicine_name", "category"])
+    if not csv_path.exists():
+        return empty
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception:
+        return empty
+    if df.empty or "medicine_name" not in df.columns or "category" not in df.columns:
+        return empty
+    return df
+
+
+def match_who_medicines(interventions: dict, who_df: pd.DataFrame) -> dict:
+    """Match intervention texts against WHO Essential Medicines names.
+
+    For each review in ``interventions``, check whether any WHO medicine name
+    appears as a case-insensitive substring in the intervention text.
+
+    Parameters
+    ----------
+    interventions : dict
+        Mapping {review_id: intervention_text (str)}.
+    who_df : pd.DataFrame
+        DataFrame with at least a ``medicine_name`` column (from
+        :func:`load_who_medicines`).
+
+    Returns
+    -------
+    dict
+        Mapping {review_id: bool} — ``True`` if any WHO medicine name is found
+        in the intervention text, ``False`` otherwise.
+    """
+    if who_df.empty or "medicine_name" not in who_df.columns:
+        return {rid: False for rid in interventions}
+
+    medicine_names = [str(m).lower() for m in who_df["medicine_name"] if pd.notna(m)]
+
+    results: dict = {}
+    for review_id, text in interventions.items():
+        text_lower = str(text).lower()
+        matched = any(med in text_lower for med in medicine_names)
+        results[review_id] = matched
+
+    return results
+
+
+def fetch_nice_guideline_counts(dois: list) -> dict:
+    """Fetch NICE guideline reference counts for a list of DOIs (MVP stub).
+
+    Checks for a local cache file at ``DATA_DIR / "nice_cache.json"``.  If the
+    cache exists, returns its contents.  Otherwise returns zero counts for all
+    provided DOIs.
+
+    Parameters
+    ----------
+    dois : list of str
+        DOIs to look up.
+
+    Returns
+    -------
+    dict
+        Mapping {doi: guideline_count (int)}.  Returns 0 for any DOI not in
+        the cache.
+    """
+    cache_path = DATA_DIR / "nice_cache.json"
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as fh:
+                cache = json.load(fh)
+            return cache
+        except Exception:
+            pass
+    return {doi: 0 for doi in dois}
+
+
 def compute_influence_score(
     citation_percentile: float,
     who_essential: bool,
@@ -665,3 +760,62 @@ def compute_influence_score(
         + group_size_percentile * INFLUENCE_WEIGHTS["group_size_percentile"]
     )
     return float(max(0.0, min(100.0, score)))
+
+
+# ---------------------------------------------------------------------------
+# Risk register
+# ---------------------------------------------------------------------------
+
+def assign_quadrant(trust: float, influence: float) -> str:
+    """Assign a risk quadrant based on trust and influence scores.
+
+    Quadrant rules (using module-level threshold constants):
+
+    - **Red Flag**   : trust < TRUST_LOW_THRESHOLD  AND influence > INFLUENCE_HIGH_THRESHOLD
+    - **Hidden Gem** : trust >= TRUST_HIGH_THRESHOLD AND influence < INFLUENCE_LOW_THRESHOLD
+    - **Safe**       : trust >= TRUST_HIGH_THRESHOLD AND influence >= INFLUENCE_HIGH_THRESHOLD
+    - **Low Stakes** : trust < TRUST_LOW_THRESHOLD  AND influence < INFLUENCE_LOW_THRESHOLD
+    - **Moderate**   : everything else (middle zone)
+
+    Parameters
+    ----------
+    trust : float
+        Trust score (0-100), typically ``final_score`` from EvidenceScore.
+    influence : float
+        Influence score (0-100), from :func:`compute_influence_score`.
+
+    Returns
+    -------
+    str
+        One of: "Red Flag", "Hidden Gem", "Safe", "Low Stakes", "Moderate".
+    """
+    if trust < TRUST_LOW_THRESHOLD and influence > INFLUENCE_HIGH_THRESHOLD:
+        return "Red Flag"
+    if trust >= TRUST_HIGH_THRESHOLD and influence < INFLUENCE_LOW_THRESHOLD:
+        return "Hidden Gem"
+    if trust >= TRUST_HIGH_THRESHOLD and influence >= INFLUENCE_HIGH_THRESHOLD:
+        return "Safe"
+    if trust < TRUST_LOW_THRESHOLD and influence < INFLUENCE_LOW_THRESHOLD:
+        return "Low Stakes"
+    return "Moderate"
+
+
+def build_risk_register(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply :func:`assign_quadrant` to all rows and return a risk register.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain columns ``final_score`` (trust) and ``influence_score``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of ``df`` with an additional ``quadrant`` column (str).
+    """
+    result = df.copy()
+    result["quadrant"] = [
+        assign_quadrant(row["final_score"], row["influence_score"])
+        for _, row in result.iterrows()
+    ]
+    return result

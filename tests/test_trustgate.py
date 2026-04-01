@@ -25,6 +25,7 @@ from trustgate_engine import (
     _z_from_p, compute_se_from_p, trust_weight_ma, compute_erosion_curve,
     load_review_groups, compute_domain_erosion,
     compute_citation_percentile, compute_influence_score,
+    load_who_medicines, match_who_medicines, fetch_nice_guideline_counts,
 )
 
 
@@ -492,3 +493,37 @@ def test_influence_score_minimal():
         group_size_percentile=50,
     )
     assert abs(score - 25.0) < 1e-9, f"Expected 25.0, got {score}"
+
+
+# ---------------------------------------------------------------------------
+# T17: match_who_medicines — exact match in text
+# ---------------------------------------------------------------------------
+
+def test_who_match_exact():
+    """T17: 'metoprolol vs placebo for heart failure' matches WHO medicines list."""
+    who_df = pd.DataFrame({
+        "medicine_name": ["metoprolol", "aspirin", "amoxicillin"],
+        "category": ["cardiovascular", "analgesic", "antibiotic"],
+    })
+    interventions = {"R1": "metoprolol vs placebo for heart failure"}
+    results = match_who_medicines(interventions, who_df)
+    assert results["R1"] == True, (
+        f"Expected True for 'metoprolol vs placebo for heart failure', got {results['R1']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T18: match_who_medicines — no match in text
+# ---------------------------------------------------------------------------
+
+def test_who_match_none():
+    """T18: 'cognitive behavioral therapy for depression' does not match WHO medicines."""
+    who_df = pd.DataFrame({
+        "medicine_name": ["metoprolol", "aspirin", "amoxicillin"],
+        "category": ["cardiovascular", "analgesic", "antibiotic"],
+    })
+    interventions = {"R1": "cognitive behavioral therapy for depression"}
+    results = match_who_medicines(interventions, who_df)
+    assert results["R1"] == False, (
+        f"Expected False for 'cognitive behavioral therapy for depression', got {results['R1']}"
+    )
