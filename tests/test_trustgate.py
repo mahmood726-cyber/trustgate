@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from trustgate_engine import (
     load_scores, load_verdicts, load_dois, merge_data,
     _z_from_p, compute_se_from_p, trust_weight_ma, compute_erosion_curve,
+    load_review_groups, compute_domain_erosion,
 )
 
 
@@ -322,3 +323,103 @@ def test_erosion_rate_zero():
             f"Expected erosion_rate=0 at threshold {row['threshold']}, "
             f"got {row['erosion_rate']}"
         )
+
+
+# ---------------------------------------------------------------------------
+# T10: load_review_groups
+# ---------------------------------------------------------------------------
+
+REVIEW_GROUPS_CSV = """\
+review_id_prefix,review_group
+MA001,Cardiology
+MA002,Oncology
+MA003,Cardiology
+"""
+
+
+def test_load_review_groups(tmp_path):
+    """T10: load_review_groups returns 3 rows and review_group column."""
+    csv_path = tmp_path / "review_groups.csv"
+    csv_path.write_text(REVIEW_GROUPS_CSV)
+
+    df = load_review_groups(path=str(csv_path))
+
+    assert len(df) == 3, f"Expected 3 rows, got {len(df)}"
+    assert "review_group" in df.columns, "review_group column missing"
+    assert "review_id_prefix" in df.columns, "review_id_prefix column missing"
+
+
+def test_load_review_groups_missing_file(tmp_path):
+    """T10b: load_review_groups returns empty DataFrame when file missing."""
+    df = load_review_groups(path=str(tmp_path / "nonexistent.csv"))
+
+    assert isinstance(df, pd.DataFrame), "Should return a DataFrame"
+    assert len(df) == 0, f"Expected 0 rows for missing file, got {len(df)}"
+    assert "review_group" in df.columns, "review_group column should be present even when empty"
+
+
+# ---------------------------------------------------------------------------
+# T11: compute_domain_erosion (grouping)
+# ---------------------------------------------------------------------------
+
+def test_domain_erosion_grouping(erosion_scores, erosion_verdicts):
+    """T11: compute_domain_erosion at threshold 70 has entries for expected domains."""
+    # Merge base fixtures
+    merged = pd.merge(erosion_scores, erosion_verdicts, on="ma_id", how="inner")
+
+    # Assign domain groups: MA001->Cardiology, MA002->Oncology, MA003->Cardiology, MA004->Oncology
+    group_map = {
+        "MA001": "Cardiology",
+        "MA002": "Oncology",
+        "MA003": "Cardiology",
+        "MA004": "Oncology",
+    }
+    merged["review_group"] = merged["ma_id"].map(group_map)
+
+    result = compute_domain_erosion(merged, thresholds=[70])
+
+    # Should have one row per domain per threshold
+    assert len(result) == 2, f"Expected 2 domain rows at threshold 70, got {len(result)}"
+
+    domains_found = set(result["domain"].tolist())
+    assert "Cardiology" in domains_found, f"'Cardiology' missing from domains: {domains_found}"
+    assert "Oncology" in domains_found, f"'Oncology' missing from domains: {domains_found}"
+
+    # Verify required columns
+    for col in ("domain", "threshold", "n_total_sig", "n_excluded", "erosion_rate", "n_mas"):
+        assert col in result.columns, f"Column '{col}' missing from domain erosion output"
+
+    # Cardiology: MA001 (score 79, sig), MA003 (score 42, sig) → at threshold 70, MA003 excluded
+    cardio = result[result["domain"] == "Cardiology"].iloc[0]
+    assert cardio["n_total_sig"] == 2, f"Cardiology n_total_sig: expected 2, got {cardio['n_total_sig']}"
+    assert cardio["n_excluded"] == 1, f"Cardiology n_excluded: expected 1 (MA003 score 42 < 70), got {cardio['n_excluded']}"
+
+    # Oncology: MA002 (score 96, sig), MA004 (score 62, not sig) → at threshold 70, 0 sig excluded
+    onco = result[result["domain"] == "Oncology"].iloc[0]
+    assert onco["n_total_sig"] == 1, f"Oncology n_total_sig: expected 1, got {onco['n_total_sig']}"
+    assert onco["n_excluded"] == 0, f"Oncology n_excluded: expected 0 (MA002 score 96 >= 70), got {onco['n_excluded']}"
+
+
+# ---------------------------------------------------------------------------
+# T12: compute_domain_erosion (no significant MAs → erosion_rate=0)
+# ---------------------------------------------------------------------------
+
+def test_domain_erosion_no_significant():
+    """T12: domain with only non-significant MAs has erosion_rate=0."""
+    merged = pd.DataFrame({
+        "ma_id":        ["M1", "M2"],
+        "review_id":    ["R1", "R2"],
+        "final_score":  [30, 40],
+        "estimate":     [0.1, 0.2],
+        "p_value":      [0.3, 0.4],
+        "significant":  [False, False],
+        "review_group": ["Neurology", "Neurology"],
+    })
+
+    result = compute_domain_erosion(merged, thresholds=[50])
+
+    assert len(result) == 1, f"Expected 1 row, got {len(result)}"
+    row = result.iloc[0]
+    assert row["domain"] == "Neurology"
+    assert row["n_total_sig"] == 0, f"Expected n_total_sig=0, got {row['n_total_sig']}"
+    assert row["erosion_rate"] == 0.0, f"Expected erosion_rate=0.0, got {row['erosion_rate']}"

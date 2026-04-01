@@ -17,13 +17,23 @@ VERDICTS_CSV : C:\\Models\\ActionableEvidence\\results\\verdicts.csv
 DOIS_CSV     : C:\\Users\\user\\asreview_pairwise70_metadata.csv
 """
 
+import json
+import math
 import re
+import time
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
+import numpy as np
 import pandas as pd
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Path constants
 # ---------------------------------------------------------------------------
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
 
 SCORES_CSV = r"C:\Models\EvidenceScore\results\scores.csv"
 VERDICTS_CSV = r"C:\Models\ActionableEvidence\results\verdicts.csv"
@@ -400,3 +410,258 @@ def compute_erosion_curve(
         })
 
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Domain grouping
+# ---------------------------------------------------------------------------
+
+def load_review_groups(path=None) -> pd.DataFrame:
+    """Load review domain groupings from CSV.
+
+    Parameters
+    ----------
+    path : str, Path, or None
+        Path to review_groups.csv.  Defaults to ``DATA_DIR / "review_groups.csv"``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: review_id_prefix, review_group.
+        Returns an empty DataFrame (with those columns) if the file is missing
+        or contains no data rows.
+    """
+    csv_path = Path(path) if path is not None else DATA_DIR / "review_groups.csv"
+    empty = pd.DataFrame(columns=["review_id_prefix", "review_group"])
+    if not csv_path.exists():
+        return empty
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception:
+        return empty
+    if df.empty or "review_id_prefix" not in df.columns or "review_group" not in df.columns:
+        return empty
+    return df
+
+
+def compute_domain_erosion(
+    merged_df: pd.DataFrame,
+    thresholds: list | None = None,
+) -> pd.DataFrame:
+    """Compute per-domain trust-erosion statistics across score thresholds.
+
+    For each ``review_group`` domain and each threshold T, count how many
+    originally-significant MAs in that domain are excluded (``final_score < T``).
+
+    Parameters
+    ----------
+    merged_df : pd.DataFrame
+        Must contain columns: final_score, significant, review_group (optional;
+        missing values filled with "Unknown").
+    thresholds : list of int, optional
+        Defaults to ``EROSION_THRESHOLDS``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: domain, threshold, n_total_sig, n_excluded, erosion_rate, n_mas.
+        One row per (domain, threshold) combination.
+    """
+    if thresholds is None:
+        thresholds = EROSION_THRESHOLDS
+
+    df = merged_df.copy()
+    if "review_group" not in df.columns:
+        df["review_group"] = "Unknown"
+    else:
+        df["review_group"] = df["review_group"].fillna("Unknown")
+
+    rows = []
+    for domain, group_df in df.groupby("review_group"):
+        n_mas = len(group_df)
+        sig_df = group_df[group_df["significant"] == True]
+        n_total_sig = len(sig_df)
+        for t in thresholds:
+            n_excluded = int((sig_df["final_score"] < t).sum())
+            if n_total_sig > 0:
+                erosion_rate = n_excluded / n_total_sig * 100.0
+            else:
+                erosion_rate = 0.0
+            rows.append({
+                "domain": domain,
+                "threshold": t,
+                "n_total_sig": n_total_sig,
+                "n_excluded": n_excluded,
+                "erosion_rate": erosion_rate,
+                "n_mas": n_mas,
+            })
+
+    return pd.DataFrame(rows, columns=["domain", "threshold", "n_total_sig",
+                                        "n_excluded", "erosion_rate", "n_mas"])
+
+
+# ---------------------------------------------------------------------------
+# Citation fetching + influence score
+# ---------------------------------------------------------------------------
+
+def fetch_citation_counts(dois: list, cache_path=None) -> dict:
+    """Fetch citation counts from PubMed eutils for a list of DOIs.
+
+    For each DOI:
+      1. esearch DOI → PMID
+      2. elink PMID → cited-by count (citedin linkname)
+
+    Results are cached to ``cache_path`` (JSON).  Cached entries are used on
+    subsequent calls; only missing DOIs are fetched from the network.
+
+    Parameters
+    ----------
+    dois : list of str
+        DOIs to look up (e.g. ["10.1002/14651858.CD000028.pub4"]).
+    cache_path : str, Path, or None
+        Path to JSON cache file.  Defaults to ``DATA_DIR / "citation_cache.json"``.
+
+    Returns
+    -------
+    dict
+        Mapping {doi: citation_count (int)}.  Returns 0 for any DOI that
+        could not be resolved or whose network request failed.
+    """
+    _cache_path = Path(cache_path) if cache_path is not None else DATA_DIR / "citation_cache.json"
+
+    # Load existing cache
+    cache: dict = {}
+    if _cache_path.exists():
+        try:
+            with open(_cache_path, "r", encoding="utf-8") as fh:
+                cache = json.load(fh)
+        except Exception:
+            cache = {}
+
+    results: dict = {}
+    needs_fetch = [d for d in dois if d not in cache]
+
+    for doi in needs_fetch:
+        try:
+            # Step 1: DOI → PMID via esearch
+            params = urllib.parse.urlencode({
+                "db": "pubmed",
+                "term": f"{doi}[DOI]",
+                "retmode": "xml",
+                "retmax": "1",
+            })
+            url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?{params}"
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                xml_bytes = resp.read()
+            root = ET.fromstring(xml_bytes)
+            id_list = root.findall(".//Id")
+            if not id_list:
+                cache[doi] = 0
+                time.sleep(0.34)
+                continue
+            pmid = id_list[0].text.strip()
+
+            time.sleep(0.34)
+
+            # Step 2: PMID → cited-by count via elink
+            params2 = urllib.parse.urlencode({
+                "dbfrom": "pubmed",
+                "db": "pubmed",
+                "id": pmid,
+                "linkname": "pubmed_pubmed_citedin",
+                "retmode": "xml",
+            })
+            url2 = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?{params2}"
+            with urllib.request.urlopen(url2, timeout=10) as resp2:
+                xml_bytes2 = resp2.read()
+            root2 = ET.fromstring(xml_bytes2)
+            cited_ids = root2.findall(".//LinkSetDb/Link/Id")
+            cache[doi] = len(cited_ids)
+
+            time.sleep(0.34)
+
+        except Exception:
+            cache[doi] = 0
+
+    # Persist updated cache
+    try:
+        _cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(_cache_path, "w", encoding="utf-8") as fh:
+            json.dump(cache, fh, indent=2)
+    except Exception:
+        pass
+
+    for doi in dois:
+        results[doi] = cache.get(doi, 0)
+
+    return results
+
+
+def compute_citation_percentile(citations: pd.Series) -> pd.Series:
+    """Normalize citation counts to percentile rank 0-100.
+
+    Parameters
+    ----------
+    citations : pd.Series
+        Raw citation counts (numeric).
+
+    Returns
+    -------
+    pd.Series
+        Percentile ranks in [0, 100].  If the series is empty, returns an
+        empty Series.  If all values are identical, returns 50.0 for all rows.
+    """
+    if citations.empty:
+        return citations.astype(float)
+
+    # All-same guard: rank(pct=True) returns 1.0 for all when all values equal,
+    # giving 100.0 instead of 50.0.  Detect and override.
+    if citations.nunique() == 1:
+        return pd.Series(50.0, index=citations.index)
+
+    return citations.rank(pct=True) * 100.0
+
+
+def compute_influence_score(
+    citation_percentile: float,
+    who_essential: bool,
+    nice_guideline_count: int,
+    group_size_percentile: float,
+) -> float:
+    """Compute a composite influence score in [0, 100].
+
+    Formula
+    -------
+    ::
+
+        influence = citation_percentile * 0.4
+                  + (20 if who_essential else 0)
+                  + min(nice_guideline_count * 10, 30)
+                  + group_size_percentile * 0.1
+
+    Clamped to [0, 100].
+
+    Parameters
+    ----------
+    citation_percentile : float
+        Percentile rank of citations (0–100).
+    who_essential : bool
+        Whether the drug/intervention appears on the WHO Essential Medicines List.
+    nice_guideline_count : int
+        Number of NICE guidelines referencing this review.
+    group_size_percentile : float
+        Percentile rank of the review-group size (0–100).
+
+    Returns
+    -------
+    float
+        Composite influence score clamped to [0, 100].
+    """
+    score = (
+        citation_percentile * INFLUENCE_WEIGHTS["citation_percentile"]
+        + (INFLUENCE_WEIGHTS["who_essential"] if who_essential else 0.0)
+        + min(nice_guideline_count * INFLUENCE_WEIGHTS["nice_per_guideline"],
+              INFLUENCE_WEIGHTS["nice_guideline_cap"])
+        + group_size_percentile * INFLUENCE_WEIGHTS["group_size_percentile"]
+    )
+    return float(max(0.0, min(100.0, score)))
