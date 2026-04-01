@@ -1,0 +1,32 @@
+{
+  "title": "TrustGate: Significance Erosion and Guideline Exposure When Meta-Analyses Are Weighted by Trust",
+  "body": "How many significant Cochrane meta-analytic findings survive when weighted by composite trust scores, and do low-trust meta-analyses disproportionately influence practice? We applied trust-weighted analysis to 888 significant meta-analyses from 6,229 Cochrane reviews, combining inverse-variance weighting adjusted by EvidenceScore with threshold gating at five levels and guideline exposure mapping across 14 domains. Trust-adjusted z-statistics were computed as the original z multiplied by the square root of the trust fraction, with results below 1.96 classified as eroded. At the B-plus threshold (score 70 or above), 63.9% of significant findings were eroded, with pain research most affected at 73.2% and cancer most resilient at 34.2% erosion. We identified 104 Red Flag meta-analyses combining low trust with high clinical influence across 12 reviews, alongside 366 Hidden Gems with high trust but low utilisation. Trust-calibrated synthesis could redirect clinical attention from unreliable toward underutilised high-quality meta-analyses. The influence score excludes direct guideline citation data, limiting precision of clinical exposure estimates.",
+  "sentences": [
+    { "role": "Question", "text": "How many significant Cochrane meta-analytic findings survive when weighted by composite trust scores, and do low-trust meta-analyses disproportionately influence practice?" },
+    { "role": "Dataset", "text": "We applied trust-weighted analysis to 888 significant meta-analyses from 6,229 Cochrane reviews, combining inverse-variance weighting adjusted by EvidenceScore with threshold gating at five levels and guideline exposure mapping across 14 domains." },
+    { "role": "Method", "text": "Trust-adjusted z-statistics were computed as the original z multiplied by the square root of the trust fraction, with results below 1.96 classified as eroded." },
+    { "role": "Primary result", "text": "At the B-plus threshold (score 70 or above), 63.9% of significant findings were eroded, with pain research most affected at 73.2% and cancer most resilient at 34.2% erosion." },
+    { "role": "Robustness", "text": "We identified 104 Red Flag meta-analyses combining low trust with high clinical influence across 12 reviews, alongside 366 Hidden Gems with high trust but low utilisation." },
+    { "role": "Interpretation", "text": "Trust-calibrated synthesis could redirect clinical attention from unreliable toward underutilised high-quality meta-analyses." },
+    { "role": "Boundary", "text": "The influence score excludes direct guideline citation data, limiting precision of clinical exposure estimates." }
+  ],
+  "wordCount": 156,
+  "sentenceCount": 7,
+  "outsideNote": {
+    "type": "methods",
+    "primary_estimand": "Significance erosion rate at trust threshold 70",
+    "app": "TrustGate v1.0",
+    "data": "6,229 meta-analyses from 501 Cochrane reviews, 888 significant",
+    "code": "C:\\Models\\TrustGate\\",
+    "doi": "",
+    "version": "1.0",
+    "date": "2026-04-01",
+    "certainty": "moderate",
+    "validationStatus": "PASS"
+  },
+  "meta": {
+    "created": "2026-04-01",
+    "valid": true,
+    "schemaVersion": "0.2"
+  }
+}
