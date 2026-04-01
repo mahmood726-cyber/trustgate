@@ -33,26 +33,20 @@ DOIS_CSV = r"C:\Users\user\asreview_pairwise70_metadata.csv"
 # Domain constants
 # ---------------------------------------------------------------------------
 
-# Trust score thresholds (final_score 0-100)
-EROSION_THRESHOLDS = {
-    "high":   80,   # final_score >= 80 → high trust
-    "medium": 60,   # 60 <= final_score < 80 → medium trust
-    "low":    40,   # 40 <= final_score < 60 → low trust
-    # below 40 → very low trust
-}
+EROSION_THRESHOLDS = [50, 60, 70, 80, 90]
 
-# Weights for each sub-score when computing a custom trust index
 INFLUENCE_WEIGHTS = {
-    "audit_score":        0.25,
-    "consistency_score":  0.20,
-    "robustness_score":   0.25,
-    "stability_score":    0.15,
-    "power_score":        0.15,
+    "citation_percentile": 0.4,
+    "who_essential": 20.0,
+    "nice_guideline_cap": 30.0,
+    "nice_per_guideline": 10.0,
+    "group_size_percentile": 0.1,
 }
 
-# Trust-adjusted significance cutoffs
-TRUST_SIGNIFICANCE_THRESHOLD = 0.05   # nominal alpha
-INFLUENCE_SCORE_THRESHOLD = 0.70      # minimum weighted influence to flag
+TRUST_LOW_THRESHOLD = 60
+TRUST_HIGH_THRESHOLD = 80
+INFLUENCE_LOW_THRESHOLD = 30
+INFLUENCE_HIGH_THRESHOLD = 70
 
 
 # ---------------------------------------------------------------------------
@@ -184,19 +178,225 @@ def merge_data(
         Merged DataFrame with all columns from scores, verdicts (suffixed
         ``_y`` for duplicate names), and doi/n_studies/years from dois.
     """
-    # Step 1: inner join on ma_id
-    combined = pd.merge(scores_df, verdicts_df, on="ma_id", how="inner")
+    # Step 1: inner join on ma_id — select specific columns to avoid duplicates
+    score_cols = ["ma_id", "review_id", "final_score", "grade", "grade_label",
+                  "audit_score", "consistency_score", "robustness_score",
+                  "stability_score", "power_score"]
+    score_cols = [c for c in score_cols if c in scores_df.columns]
+    verdict_cols = ["ma_id", "k", "total_n", "estimate", "p_value", "significant"]
+    verdict_cols = [c for c in verdict_cols if c in verdicts_df.columns]
 
-    # Step 2: left join DOIs — use review_id from scores side (_x after merge)
-    # After inner join, scores' review_id is review_id_x; resolve appropriately
-    review_id_col = "review_id_x" if "review_id_x" in combined.columns else "review_id"
+    combined = pd.merge(scores_df[score_cols], verdicts_df[verdict_cols],
+                        on="ma_id", how="inner")
+
+    # Step 2: left join DOIs on review_id = review_id_prefix
+    if "review_id_prefix" not in dois_df.columns:
+        dois_df = dois_df.copy()
+        dois_df["review_id_prefix"] = dois_df["review_id"].str.replace(
+            r"_pub\d+$", "", regex=True
+        )
 
     merged = pd.merge(
         combined,
-        dois_df[["review_id_prefix", "doi", "n_studies", "years"]],
-        left_on=review_id_col,
-        right_on="review_id_prefix",
+        dois_df[["review_id_prefix", "doi"]].rename(
+            columns={"review_id_prefix": "review_id"}
+        ),
+        on="review_id",
         how="left",
     )
 
     return merged
+
+
+# ---------------------------------------------------------------------------
+# Trust-weighting helpers
+# ---------------------------------------------------------------------------
+
+def _z_from_p(p: float) -> float:
+    """Convert a two-sided p-value to an absolute z-score.
+
+    Uses the Abramowitz & Stegun rational approximation (26.2.23) for the
+    inverse normal CDF applied to the one-sided tail probability p/2.
+
+    Parameters
+    ----------
+    p : float
+        Two-sided p-value (0 < p < 1).
+
+    Returns
+    -------
+    float
+        Absolute z-score corresponding to ``p``.
+    """
+    import math
+
+    # Clamp to avoid log(0)
+    p = max(1e-300, min(p, 1.0 - 1e-15))
+    # One-sided tail probability
+    t_val = p / 2.0
+    # We need the upper-tail quantile, so work with 1 - t_val
+    q = 1.0 - t_val
+    # A&S 26.2.23 rational approximation for the inverse normal CDF
+    # valid for q in (0.5, 1.0), i.e. for small t_val
+    if q > 0.5:
+        sign = 1.0
+        arg = q
+    else:
+        sign = -1.0
+        arg = 1.0 - q
+
+    t = math.sqrt(-2.0 * math.log(1.0 - arg))
+    # Rational approximation coefficients from A&S 26.2.23
+    c0, c1, c2 = 2.515517, 0.802853, 0.010328
+    d1, d2, d3 = 1.432788, 0.189269, 0.001308
+    numerator = c0 + c1 * t + c2 * t * t
+    denominator = 1.0 + d1 * t + d2 * t * t + d3 * t * t * t
+    z = sign * (t - numerator / denominator)
+
+    return abs(z)
+
+
+def compute_se_from_p(estimate: float, p_value: float) -> float | None:
+    """Derive standard error from effect size and two-sided p-value.
+
+    Formula: SE = |estimate| / z  where z = _z_from_p(p_value).
+
+    Parameters
+    ----------
+    estimate : float
+        Point estimate (e.g. log-OR, SMD).
+    p_value : float
+        Two-sided p-value.
+
+    Returns
+    -------
+    float or None
+        Derived SE, or ``None`` if ``estimate == 0`` or ``z == 0``.
+    """
+    if estimate == 0:
+        return None
+    z = _z_from_p(p_value)
+    if z == 0:
+        return None
+    return abs(estimate) / z
+
+
+def trust_weight_ma(
+    estimate: float,
+    p_value: float,
+    trust_score: float,
+) -> dict:
+    """Compute trust-weighted statistics for one meta-analysis.
+
+    Parameters
+    ----------
+    estimate : float
+        Point estimate.
+    p_value : float
+        Two-sided p-value.
+    trust_score : float
+        EvidenceScore trust score (0–100).
+
+    Returns
+    -------
+    dict
+        Keys: original_weight, trust_weight, trust_weighted_estimate, se.
+        All zero if SE cannot be derived (estimate=0 or z=0).
+    """
+    se = compute_se_from_p(estimate, p_value)
+    if se is None:
+        return {
+            "original_weight": 0.0,
+            "trust_weight": 0.0,
+            "trust_weighted_estimate": 0.0,
+            "se": None,
+        }
+
+    original_weight = 1.0 / (se ** 2)
+    score_fraction = trust_score / 100.0
+    tw = original_weight * score_fraction
+
+    return {
+        "original_weight": original_weight,
+        "trust_weight": tw,
+        "trust_weighted_estimate": estimate * score_fraction,
+        "se": se,
+    }
+
+
+def compute_erosion_curve(
+    merged_df: pd.DataFrame,
+    thresholds: list[int] | None = None,
+) -> pd.DataFrame:
+    """Compute trust-erosion statistics across score thresholds.
+
+    For each threshold T in ``EROSION_THRESHOLDS``:
+
+    1. Start with all originally-significant MAs.
+    2. MAs with ``final_score < T`` are *excluded*.
+    3. Among surviving MAs (score >= T), apply linear trust-weighting
+       (trust_weight = original_weight * score/100) and recompute z.
+       MAs where the trust-adjusted z < 1.96 are *weakened*.
+    4. n_surviving  = n_remaining - n_weakened
+    5. erosion_rate = (n_excluded + n_weakened) / n_total_sig * 100
+
+    Parameters
+    ----------
+    merged_df : pd.DataFrame
+        Must contain columns: final_score, significant, estimate, p_value.
+    thresholds : list of int, optional
+        Defaults to ``EROSION_THRESHOLDS``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: threshold, n_total_sig, n_remaining, n_surviving,
+        n_weakened, n_excluded, erosion_rate.
+    """
+    if thresholds is None:
+        thresholds = EROSION_THRESHOLDS
+
+    sig_df = merged_df[merged_df["significant"] == True].copy()
+    n_total_sig = len(sig_df)
+
+    rows = []
+    for t in thresholds:
+        remaining = sig_df[sig_df["final_score"] >= t]
+        excluded = sig_df[sig_df["final_score"] < t]
+        n_remaining = len(remaining)
+        n_excluded = len(excluded)
+
+        n_weakened = 0
+        for _, row in remaining.iterrows():
+            se = compute_se_from_p(row["estimate"], row["p_value"])
+            if se is None:
+                # Cannot assess — count as weakened (conservative)
+                n_weakened += 1
+                continue
+            original_weight = 1.0 / (se ** 2)
+            score_fraction = row["final_score"] / 100.0
+            trust_weight = original_weight * score_fraction
+            # Trust-adjusted SE: se_adj = 1/sqrt(trust_weight)
+            se_adj = 1.0 / (trust_weight ** 0.5)
+            trust_z = abs(row["estimate"]) / se_adj
+            if trust_z < 1.96:
+                n_weakened += 1
+
+        n_surviving = n_remaining - n_weakened
+
+        if n_total_sig > 0:
+            erosion_rate = (n_excluded + n_weakened) / n_total_sig * 100.0
+        else:
+            erosion_rate = 0.0
+
+        rows.append({
+            "threshold": t,
+            "n_total_sig": n_total_sig,
+            "n_remaining": n_remaining,
+            "n_surviving": n_surviving,
+            "n_weakened": n_weakened,
+            "n_excluded": n_excluded,
+            "erosion_rate": erosion_rate,
+        })
+
+    return pd.DataFrame(rows)
