@@ -24,6 +24,7 @@ from trustgate_engine import (
     load_scores, load_verdicts, load_dois, merge_data,
     _z_from_p, compute_se_from_p, trust_weight_ma, compute_erosion_curve,
     load_review_groups, compute_domain_erosion,
+    compute_citation_percentile, compute_influence_score,
 )
 
 
@@ -423,3 +424,71 @@ def test_domain_erosion_no_significant():
     assert row["domain"] == "Neurology"
     assert row["n_total_sig"] == 0, f"Expected n_total_sig=0, got {row['n_total_sig']}"
     assert row["erosion_rate"] == 0.0, f"Expected erosion_rate=0.0, got {row['erosion_rate']}"
+
+
+# ---------------------------------------------------------------------------
+# T13: compute_citation_percentile — basic normalization
+# ---------------------------------------------------------------------------
+
+def test_citation_percentile_basic():
+    """T13: Series [0, 5, 10, 50, 100] → percentiles in [0,100], highest > lowest."""
+    citations = pd.Series([0, 5, 10, 50, 100])
+    result = compute_citation_percentile(citations)
+
+    assert len(result) == 5, f"Expected 5 values, got {len(result)}"
+    assert result.min() >= 0.0, f"Min percentile should be >= 0, got {result.min()}"
+    assert result.max() <= 100.0, f"Max percentile should be <= 100, got {result.max()}"
+
+    # The entry corresponding to count=100 must be higher than count=0
+    idx_max = citations.idxmax()
+    idx_min = citations.idxmin()
+    assert result[idx_max] > result[idx_min], (
+        f"Highest-cited entry percentile {result[idx_max]} should exceed "
+        f"lowest-cited entry percentile {result[idx_min]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T14: compute_citation_percentile — all-same guard
+# ---------------------------------------------------------------------------
+
+def test_citation_percentile_all_same():
+    """T14: Series [10, 10, 10, 10] → all percentiles equal 50.0."""
+    citations = pd.Series([10, 10, 10, 10])
+    result = compute_citation_percentile(citations)
+
+    assert len(result) == 4, f"Expected 4 values, got {len(result)}"
+    for val in result:
+        assert val == 50.0, f"Expected 50.0 for all-same series, got {val}"
+
+
+# ---------------------------------------------------------------------------
+# T15: compute_influence_score — all sources contribute
+# ---------------------------------------------------------------------------
+
+def test_influence_score_all_sources():
+    """T15: citation_pct=80, who=True, nice=2, group_pct=60 → 78.0."""
+    # 80*0.4 + 20 + min(2*10, 30) + 60*0.1 = 32 + 20 + 20 + 6 = 78
+    score = compute_influence_score(
+        citation_percentile=80,
+        who_essential=True,
+        nice_guideline_count=2,
+        group_size_percentile=60,
+    )
+    assert abs(score - 78.0) < 1e-9, f"Expected 78.0, got {score}"
+
+
+# ---------------------------------------------------------------------------
+# T16: compute_influence_score — minimal (no WHO, no NICE)
+# ---------------------------------------------------------------------------
+
+def test_influence_score_minimal():
+    """T16: citation_pct=50, who=False, nice=0, group_pct=50 → 25.0."""
+    # 50*0.4 + 0 + 0 + 50*0.1 = 20 + 0 + 0 + 5 = 25
+    score = compute_influence_score(
+        citation_percentile=50,
+        who_essential=False,
+        nice_guideline_count=0,
+        group_size_percentile=50,
+    )
+    assert abs(score - 25.0) < 1e-9, f"Expected 25.0, got {score}"
