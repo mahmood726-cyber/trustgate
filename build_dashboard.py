@@ -66,6 +66,19 @@ def build_html(risk_register, erosion_curve, domain_erosion, summary):
     who_count = sum(1 for r in risk_register if r.get("who_essential", "").lower() == "true")
     nice_count = sum(1 for r in risk_register if int(r.get("nice_guideline_count", 0) or 0) > 0)
     has_guideline_data = who_count > 0 or nice_count > 0
+    if has_guideline_data and who_count > 0 and nice_count == 0:
+        guideline_notice = (
+            '<div class="tg-placeholder">WHO Essential Medicines matching is populated. '
+            'Direct NICE guideline citation counts are currently zero until the local '
+            'NICE cache is refreshed.</div>'
+        )
+    elif not has_guideline_data:
+        guideline_notice = (
+            '<div class="tg-placeholder">Guideline sources are not populated for this dataset. '
+            'Load WHO matches and/or NICE cache data to enable the breakdown chart.</div>'
+        )
+    else:
+        guideline_notice = ""
 
     # Domain heatmap: detect if all "Unknown"
     has_real_domains = any(
@@ -438,7 +451,7 @@ tr:hover td {{ background: rgba(255,255,255,0.03); }}
 <!-- Section 5: Guideline Source Breakdown -->
 <div class="tg-section">
     <h2>Guideline Source Breakdown</h2>
-    {"''" if has_guideline_data else '<div class="tg-placeholder">Guideline sources pending data enrichment &mdash; WHO Essential Medicines and NICE guideline citation data not yet populated for this dataset.</div>'}
+    {guideline_notice}
     <canvas id="tg-guideline-canvas" width="640" height="280" style="{"display:block;margin:0 auto;" if has_guideline_data else "display:none"}"></canvas>
 </div>
 
@@ -470,18 +483,18 @@ tr:hover td {{ background: rgba(255,255,255,0.03); }}
         </div>
         <div class="tg-method-card">
             <h4>Influence Score Formula</h4>
-            <div class="tg-tag">Citation + Size</div>
-            <p>Influence = 0.5&times;CitationPercentile + 0.3&times;GroupSizePercentile + 0.2&times;WHObonus. Reflects both academic impact (citation rank) and practical importance (study sample size and guideline relevance).</p>
+            <div class="tg-tag">Citation + Guideline Relevance</div>
+            <p>Influence = 0.4&times;CitationPercentile + 0.1&times;GroupSizePercentile + 20 if WHO-matched + min(10&times;NICECount, 30). This combines academic impact with therapeutic importance and direct guideline exposure.</p>
         </div>
         <div class="tg-method-card">
             <h4>Risk Register Quadrants</h4>
             <div class="tg-tag">2&times;2 Matrix</div>
-            <p>Red Flag: high trust + high influence (needs urgent scrutiny). Hidden Gem: high trust but low influence (under-cited). Safe: high trust + adequate influence. Low Stakes: low influence overall. Moderate: middle band.</p>
+            <p>Red Flag: low trust + high influence. Hidden Gem: high trust + low influence. Safe: high trust + high influence. Low Stakes: low trust + low influence. Moderate: everything between these thresholds.</p>
         </div>
         <div class="tg-method-card">
             <h4>Data Sources</h4>
-            <div class="tg-tag">Cochrane + OpenAlex</div>
-            <p>Meta-analyses from Cochrane Reviews (6,229 MAs across 501 reviews). Trust scores from MetaAudit 11-detector pipeline. Citations from OpenAlex. WHO Essential Medicines and NICE guideline flags from curated reference lists.</p>
+            <div class="tg-tag">Cochrane + PubMed Cache</div>
+            <p>Meta-analyses come from Cochrane Reviews (6,229 MAs across 501 reviews). Trust scores come from the MetaAudit pipeline. Citation counts come from cached PubMed cited-by lookups. WHO Essential Medicines matches come from a curated local list, and NICE counts are read from the local NICE cache when available.</p>
         </div>
     </div>
 </div>

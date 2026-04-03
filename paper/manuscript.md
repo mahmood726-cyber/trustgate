@@ -89,7 +89,7 @@ Meta-analyses were classified into five quadrants by crossing EvidenceScore (tru
 
 ### Software and reproducibility
 
-All analyses were conducted using TrustGate v1.0, a Python-based open-source pipeline (available at [repository URL]). The analysis pipeline processes input data deterministically from cached data sources, requiring no external API calls for replication. All 26 unit and integration tests pass. The interactive dashboard is available as a single-file HTML application.
+All analyses were conducted using TrustGate v1.0, a Python-based open-source pipeline (available at [repository URL]). The analysis pipeline processes input data deterministically from cached data sources, requiring no external API calls for replication. The full unit and integration test suite passes. The interactive dashboard is available as a single-file HTML application.
 
 ## Results
 
@@ -195,7 +195,7 @@ Trust-weighted significance analysis reveals that nearly two-thirds of statistic
 
 ## Data availability
 
-All input data are derived from the publicly available Cochrane Library. The TrustGate analysis code, test suite (26/26 tests passing), and interactive dashboard are available as open-source software at [repository URL]. Results can be reproduced from cached data without external API calls.
+All input data are derived from the publicly available Cochrane Library. The TrustGate analysis code, passing test suite, and interactive dashboard are available as open-source software at [repository URL]. Results can be reproduced from cached data without external API calls.
 
 ## References
 

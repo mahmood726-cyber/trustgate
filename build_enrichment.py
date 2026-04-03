@@ -18,6 +18,7 @@ from collections import Counter
 SOURCE_CSV = Path(r"C:\Archive\Backups\ctgov-search-strategies_backup_20260113_193020\data\review_conditions.csv")
 DATA_DIR   = Path(r"C:\Models\TrustGate\data")
 WHO_CSV    = DATA_DIR / "who_medicines.csv"
+DOIS_CSV   = Path.home() / "asreview_pairwise70_metadata.csv"
 
 OUT_GROUPS = DATA_DIR / "review_groups.csv"
 OUT_WHO    = DATA_DIR / "who_matches.json"
@@ -25,10 +26,16 @@ OUT_NICE   = DATA_DIR / "nice_cache.json"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 _PUB_RE = re.compile(r"_pub\d+_data$", re.IGNORECASE)
+_REVIEW_PUB_RE = re.compile(r"_pub\d+$", re.IGNORECASE)
 
 def strip_suffix(dataset_id: str) -> str:
     """CD000028_pub4_data  →  CD000028"""
     return _PUB_RE.sub("", dataset_id)
+
+
+def strip_review_pub_suffix(review_id: str) -> str:
+    """CD000028_pub4  â†’  CD000028"""
+    return _REVIEW_PUB_RE.sub("", review_id)
 
 def first_condition(conditions_str: str) -> str:
     """'cardiovascular, neurological' → 'Cardiovascular'"""
@@ -134,17 +141,41 @@ if len(match_details) > 10:
 
 # ── TASK 3: nice_cache.json ───────────────────────────────────────────────────
 # Placeholder — real enrichment requires NICE API/scraping (501 HTTP calls).
-# The engine reads this dict as {review_id_prefix: guideline_count}.
-# An empty dict means all counts default to 0 downstream.
-nice_cache: dict = {}
+# The downstream engine supports both DOI keys and review_id_prefix keys.
+# A later refresh step can replace these zero counts with live NICE matches.
+doi_map: dict[str, int] = {}
+review_prefixes = {record["review_id_prefix"] for record in group_records}
+
+if DOIS_CSV.exists():
+    with open(DOIS_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            doi = (row.get("doi") or "").strip()
+            review_id = strip_review_pub_suffix((row.get("review_id") or "").strip()).upper()
+            if doi:
+                doi_map.setdefault(doi, 0)
+            if review_id:
+                review_prefixes.add(review_id)
+
+nice_cache = {
+    "schema_version": 1,
+    "source": "placeholder_zero_cache",
+    "notes": (
+        "Populate by_doi and by_review_id_prefix with NICE guideline counts "
+        "during a later refresh step."
+    ),
+    "by_doi": dict(sorted(doi_map.items())),
+    "by_review_id_prefix": {prefix: 0 for prefix in sorted(review_prefixes)},
+}
 
 with open(OUT_NICE, "w", encoding="utf-8") as f:
     json.dump(nice_cache, f, indent=2)
 
 print(f"\nTask 3 — nice_cache.json")
-print(f"  Created placeholder empty dict (0 entries).")
-print(f"  NOTE: Enrich via NICE Evidence Search API: https://www.evidence.nhs.uk/search?q={{CD_number}}")
-print(f"  501 reviews would require ~501 HTTP GET requests.")
+print(f"  Created structured zero-count scaffold.")
+print(f"  DOI keys: {len(nice_cache['by_doi'])}")
+print(f"  Review prefix keys: {len(nice_cache['by_review_id_prefix'])}")
+print(f"  NOTE: Fill the cache in a later NICE refresh step using either DOI or review-prefix keys.")
 
 print(f"\nAll 3 files written to {DATA_DIR}")
 print(f"  {OUT_GROUPS}")

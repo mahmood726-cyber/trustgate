@@ -702,33 +702,135 @@ def match_who_medicines(interventions: dict, who_df: pd.DataFrame) -> dict:
     return results
 
 
-def fetch_nice_guideline_counts(dois: list) -> dict:
-    """Fetch NICE guideline reference counts for a list of DOIs (MVP stub).
+_REVIEW_SUFFIX_RE = re.compile(r"_pub\d+$", re.IGNORECASE)
 
-    Checks for a local cache file at ``DATA_DIR / "nice_cache.json"``.  If the
-    cache exists, returns its contents.  Otherwise returns zero counts for all
-    provided DOIs.
+
+def normalize_review_id(value: str | None) -> str:
+    """Normalize review identifiers to a bare uppercase Cochrane prefix."""
+    if value is None:
+        return ""
+    review_id = str(value).strip()
+    if not review_id:
+        return ""
+    return _REVIEW_SUFFIX_RE.sub("", review_id).upper()
+
+
+def _safe_nonnegative_int(value) -> int:
+    """Convert cache values to non-negative integers, defaulting to 0."""
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def load_nice_guideline_cache(path: str | Path | None = None) -> dict:
+    """Load and normalize NICE guideline counts from the local cache.
+
+    Supported cache shapes
+    ----------------------
+    1. Legacy flat dict keyed by DOI:
+         ``{"10.1002/...": 2}``
+    2. Legacy flat dict keyed by review prefix:
+         ``{"CD000028": 1}``
+    3. Structured cache with both namespaces:
+         ``{"by_doi": {...}, "by_review_id_prefix": {...}}``
+
+    Parameters
+    ----------
+    path : str, Path, or None
+        Path to ``nice_cache.json``. Defaults to ``DATA_DIR / "nice_cache.json"``.
+
+    Returns
+    -------
+    dict
+        Normalized mapping with two keys:
+        ``{"by_doi": {...}, "by_review_id_prefix": {...}}``.
+    """
+    cache_path = Path(path) if path is not None else DATA_DIR / "nice_cache.json"
+    empty = {"by_doi": {}, "by_review_id_prefix": {}}
+    if not cache_path.exists():
+        return empty
+
+    try:
+        with open(cache_path, "r", encoding="utf-8") as fh:
+            raw_cache = json.load(fh)
+    except Exception:
+        return empty
+
+    if not isinstance(raw_cache, dict):
+        return empty
+
+    raw_by_doi = {}
+    raw_by_review = {}
+    if "by_doi" in raw_cache or "by_review_id_prefix" in raw_cache:
+        if isinstance(raw_cache.get("by_doi"), dict):
+            raw_by_doi = raw_cache.get("by_doi", {})
+        if isinstance(raw_cache.get("by_review_id_prefix"), dict):
+            raw_by_review = raw_cache.get("by_review_id_prefix", {})
+    else:
+        for key, value in raw_cache.items():
+            key_str = str(key).strip()
+            if not key_str:
+                continue
+            if key_str.lower().startswith("10."):
+                raw_by_doi[key_str] = value
+            else:
+                raw_by_review[key_str] = value
+
+    by_doi = {}
+    for key, value in raw_by_doi.items():
+        doi = str(key).strip()
+        if doi:
+            by_doi[doi] = _safe_nonnegative_int(value)
+
+    by_review_id_prefix = {}
+    for key, value in raw_by_review.items():
+        review_id = normalize_review_id(key)
+        if review_id:
+            by_review_id_prefix[review_id] = _safe_nonnegative_int(value)
+
+    return {
+        "by_doi": by_doi,
+        "by_review_id_prefix": by_review_id_prefix,
+    }
+
+
+def fetch_nice_guideline_counts(
+    dois: list,
+    review_ids: list | None = None,
+    cache_path: str | Path | None = None,
+) -> dict:
+    """Resolve NICE guideline counts from the local cache.
 
     Parameters
     ----------
     dois : list of str
         DOIs to look up.
+    review_ids : list of str, optional
+        Review IDs (for example ``CD000028``) to look up in the same cache.
+    cache_path : str, Path, or None
+        Optional override for the NICE cache file location.
 
     Returns
     -------
     dict
-        Mapping {doi: guideline_count (int)}.  Returns 0 for any DOI not in
-        the cache.
+        Mapping keyed by the requested DOI values and normalized review IDs.
+        Missing entries default to 0.
     """
-    cache_path = DATA_DIR / "nice_cache.json"
-    if cache_path.exists():
-        try:
-            with open(cache_path, "r", encoding="utf-8") as fh:
-                cache = json.load(fh)
-            return {doi: cache.get(doi, 0) for doi in dois}
-        except Exception:
-            pass
-    return {doi: 0 for doi in dois}
+    cache = load_nice_guideline_cache(cache_path)
+
+    results = {}
+    for doi in dois:
+        doi_key = str(doi).strip()
+        if doi_key:
+            results[doi_key] = cache["by_doi"].get(doi_key, 0)
+
+    for review_id in review_ids or []:
+        normalized = normalize_review_id(review_id)
+        if normalized:
+            results[normalized] = cache["by_review_id_prefix"].get(normalized, 0)
+
+    return results
 
 
 def compute_influence_score(
@@ -947,9 +1049,21 @@ def run_pipeline(
     else:
         merged["who_essential"] = False
 
-    # NICE guideline counts (MVP: returns 0 for all)
-    nice_counts = fetch_nice_guideline_counts(unique_dois)
-    merged["nice_guideline_count"] = merged["doi"].map(nice_counts).fillna(0).astype(int)
+    # NICE guideline counts come from the local cache, supporting both DOI
+    # keys and review-prefix keys generated by the enrichment builder.
+    nice_cache = load_nice_guideline_cache()
+
+    def _resolve_nice_count(row) -> int:
+        doi = row.get("doi")
+        if pd.notna(doi):
+            doi_key = str(doi).strip()
+            if doi_key in nice_cache["by_doi"]:
+                return int(nice_cache["by_doi"][doi_key])
+
+        review_key = normalize_review_id(row.get("review_id"))
+        return int(nice_cache["by_review_id_prefix"].get(review_key, 0))
+
+    merged["nice_guideline_count"] = merged.apply(_resolve_nice_count, axis=1).astype(int)
 
     # Group size percentile
     group_sizes = merged.groupby("review_id").size()

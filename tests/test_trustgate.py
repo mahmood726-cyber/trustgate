@@ -12,6 +12,7 @@ T8: erosion_curve_high_threshold — threshold 90 excludes 2 MAs
 T9: erosion_rate_zero — all MAs score 100 → erosion_rate=0 at every threshold
 """
 import io
+import json
 import re
 import pytest
 import pandas as pd
@@ -564,6 +565,49 @@ def test_who_match_none():
 # ---------------------------------------------------------------------------
 # T19: assign_quadrant — all five quadrants
 # ---------------------------------------------------------------------------
+
+def test_fetch_nice_guideline_counts_legacy_cache(tmp_path):
+    """T18b: legacy flat NICE cache resolves DOI and review-prefix counts."""
+    cache_path = tmp_path / "nice_cache.json"
+    cache_path.write_text(json.dumps({
+        "10.1002/14651858.CD000028.pub4": 2,
+        "CD000143": 1,
+    }), encoding="utf-8")
+
+    counts = fetch_nice_guideline_counts(
+        ["10.1002/14651858.CD000028.pub4", "10.1002/14651858.CD999999.pub1"],
+        review_ids=["CD000143", "CD999999"],
+        cache_path=cache_path,
+    )
+
+    assert counts["10.1002/14651858.CD000028.pub4"] == 2
+    assert counts["10.1002/14651858.CD999999.pub1"] == 0
+    assert counts["CD000143"] == 1
+    assert counts["CD999999"] == 0
+
+
+def test_fetch_nice_guideline_counts_structured_cache(tmp_path):
+    """T18c: structured NICE cache supports DOI keys and _pub suffix review IDs."""
+    cache_path = tmp_path / "nice_cache.json"
+    cache_path.write_text(json.dumps({
+        "schema_version": 1,
+        "by_doi": {
+            "10.1002/14651858.CD001155.pub3": 3,
+        },
+        "by_review_id_prefix": {
+            "CD001909_pub4": 4,
+        },
+    }), encoding="utf-8")
+
+    counts = fetch_nice_guideline_counts(
+        ["10.1002/14651858.CD001155.pub3"],
+        review_ids=["CD001909"],
+        cache_path=cache_path,
+    )
+
+    assert counts["10.1002/14651858.CD001155.pub3"] == 3
+    assert counts["CD001909"] == 4
+
 
 def test_assign_quadrant():
     """T19: Each quadrant boundary maps to the correct label."""
