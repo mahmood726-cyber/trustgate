@@ -1,21 +1,61 @@
 {
-  "title": "TrustGate: Trust-Weighted Meta-Meta-Analysis with Evidence Erosion Detection",
+  "title": "Untitled E156",
   "slug": "trustgate",
-  "date": "2026-04-07",
+  "author": "Mahmood Ahmad",
+  "date": "2026-03-26",
+  "body": "",
+  "word_count": 0,
+  "sentence_count": 0,
+  "sentences": [],
+  "notes": {
+    "code": "https://github.com/mahmood726-cyber/trustgate"
+  },
   "type": "methods",
-  "primary_estimand": "Trust-adjusted pooled estimate and evidence erosion rate",
-  "certainty": "",
-  "summary": "Multi-review evidence collections with quality, fragility, and bias metadata",
-  "body": "Can trust-weighted meta-meta-analysis quantify how much evidence erosion affects the reliability of systematic review conclusions when quality, fragility, and bias indicators are jointly considered? We developed TrustGate as a browser tool implementing trust-weighted pooling across multiple meta-analyses where each review receives a composite trust score based on fragility index, GRADE certainty, publication bias indicators, and study overlap metrics. The trust gate applies multiplicative down-weighting to low-trust reviews before meta-meta-analytic pooling, producing trust-adjusted estimates and erosion diagnostics. Across 104 review collections the trust-adjusted estimate diverged from the naive pooled estimate by a median of 0.12 standard deviations (95% CI 0.08 to 0.17), with 63.9 percent showing evidence of meaningful trust erosion. Red flag analysis identified 104 specific quality concerns across the review collections with the most common being fragility index below 3 and prediction intervals crossing the null. Trust-weighted meta-meta-analysis could provide a quality-adjusted synthesis when multiple systematic reviews on the same question reach different conclusions. The trust scores use heuristic weights that have not been validated against prospective outcome data.",
-  "sentences": [
-    "Can trust-weighted meta-meta-analysis quantify how much evidence erosion affects the reliability of systematic review conclusions when quality, fragility, and bias indicators are jointly considered?",
-    "We developed TrustGate as a browser tool implementing trust-weighted pooling across multiple meta-analyses where each review receives a composite trust score based on fragility index, GRADE certainty, publication bias indicators, and study overlap metrics.",
-    "The trust gate applies multiplicative down-weighting to low-trust reviews before meta-meta-analytic pooling, producing trust-adjusted estimates and erosion diagnostics.",
-    "Across 104 review collections the trust-adjusted estimate diverged from the naive pooled estimate by a median of 0.12 standard deviations (95% CI 0.08 to 0.17), with 63.9 percent showing evidence of meaningful trust erosion.",
-    "Red flag analysis identified 104 specific quality concerns across the review collections with the most common being fragility index below 3 and prediction intervals crossing the null.",
-    "Trust-weighted meta-meta-analysis could provide a quality-adjusted synthesis when multiple systematic reviews on the same question reach different conclusions.",
-    "The trust scores use heuristic weights that have not been validated against prospective outcome data."
-  ],
-  "study_count": "",
-  "participant_count": ""
+  "primary_estimand": "",
+  "validation": {
+    "status": "fail",
+    "checks": [
+      {
+        "name": "single paragraph",
+        "ok": true,
+        "detail": "Body must not contain blank-line paragraph breaks."
+      },
+      {
+        "name": "sentence count",
+        "ok": false,
+        "detail": "Found 0 sentences."
+      },
+      {
+        "name": "word count",
+        "ok": true,
+        "detail": "Found 0 words."
+      },
+      {
+        "name": "no headings",
+        "ok": true,
+        "detail": "No markdown headings allowed in body."
+      },
+      {
+        "name": "no links",
+        "ok": true,
+        "detail": "No links or DOI links allowed in body."
+      },
+      {
+        "name": "result sentence has interval",
+        "ok": false,
+        "detail": "Sentence 4 should include a quantitative result such as a percentage, count, or interval."
+      },
+      {
+        "name": "result sentence has estimand",
+        "ok": false,
+        "detail": "Sentence 4 should name an effect measure or test metric."
+      },
+      {
+        "name": "boundary sentence present",
+        "ok": false,
+        "detail": "Sentence 7 should express a limitation, harm, or scope boundary."
+      }
+    ]
+  },
+  "schema": "e156-v0.2"
 }

@@ -1,1608 +1,492 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>E156 Interactive Bundle</title>
-  <style>
-    :root {
-      --bg: #f6f3ee;
-      --paper: rgba(255, 255, 255, 0.92);
-      --paper-strong: #fbfaf7;
-      --ink: #111111;
-      --muted: #5f5a53;
-      --line: #ddd5ca;
-      --line-strong: #b8aea2;
-      --accent: #326891;
-      --accent-soft: #e8f0f6;
-      --review: #6b5435;
-      --good: #216c53;
-      --warn: #a06a12;
-      --bad: #922b21;
-      --shadow: 0 16px 38px rgba(17, 17, 17, 0.045);
-      --radius: 8px;
-      --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
-      --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-    }
-
-    * { box-sizing: border-box; }
-
-    @keyframes rise-in {
-      from {
-        opacity: 0;
-        transform: translateY(18px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    body {
-      margin: 0;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at top, rgba(50, 104, 145, 0.08), transparent 28%),
-        linear-gradient(180deg, #fcfbf8 0%, var(--bg) 100%);
-      font-family: var(--serif);
-      line-height: 1.5;
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .page {
-      width: min(1280px, calc(100vw - 48px));
-      margin: 18px auto 72px;
-      display: grid;
-      gap: 24px;
-    }
-
-    .masthead {
-      display: flex;
-      justify-content: space-between;
-      align-items: end;
-      gap: 18px;
-      padding: 10px 0 18px;
-      border-top: 1px solid var(--line-strong);
-      border-bottom: 3px double var(--line);
-      animation: rise-in 0.65s ease-out both;
-    }
-
-    .masthead-brand {
-      font-family: var(--serif);
-      font-size: clamp(30px, 4vw, 46px);
-      font-weight: 700;
-      letter-spacing: -0.035em;
-    }
-
-    .masthead-meta {
-      max-width: 38ch;
-      font-family: var(--sans);
-      font-size: 11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      text-align: right;
-      line-height: 1.6;
-    }
-
-    .hero,
-    .card {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-    }
-
-    .hero {
-      position: relative;
-      overflow: hidden;
-      padding: 40px clamp(22px, 4vw, 52px) 34px;
-      border-top: 4px solid var(--ink);
-      animation: rise-in 0.72s ease-out both;
-    }
-
-    .hero::after {
-      content: "";
-      position: absolute;
-      inset: auto -10% -40% auto;
-      width: 44%;
-      aspect-ratio: 1;
-      background: radial-gradient(circle, rgba(50, 104, 145, 0.13), transparent 68%);
-      pointer-events: none;
-    }
-
-    .eyebrow {
-      position: relative;
-      z-index: 1;
-      color: var(--accent);
-      font-family: var(--sans);
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-weight: 700;
-      margin-bottom: 14px;
-    }
-
-    h1 {
-      position: relative;
-      z-index: 1;
-      margin: 0 0 16px;
-      max-width: 13ch;
-      font-family: var(--serif);
-      font-size: clamp(42px, 6vw, 78px);
-      line-height: 0.97;
-      letter-spacing: -0.05em;
-      font-weight: 700;
-      text-wrap: balance;
-    }
-
-    .lede {
-      position: relative;
-      z-index: 1;
-      color: #464038;
-      max-width: 56rem;
-      margin: 0;
-      font-size: clamp(19px, 2.2vw, 25px);
-      line-height: 1.62;
-      font-style: normal;
-      text-wrap: pretty;
-    }
-
-    .hero-rail {
-      position: relative;
-      z-index: 1;
-      margin-top: 28px;
-      padding-top: 18px;
-      border-top: 1px solid var(--line);
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      font-family: var(--sans);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-    }
-
-    .hero-rail > div {
-      padding: 12px 14px;
-      border-top: 1px solid var(--line-strong);
-      background: rgba(255, 255, 255, 0.62);
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.8fr) minmax(290px, 0.95fr);
-      gap: 24px;
-      animation: rise-in 0.72s ease-out 0.08s both;
-    }
-
-    .card {
-      padding: 26px clamp(18px, 2.4vw, 30px);
-      border-radius: var(--radius);
-      animation: rise-in 0.72s ease-out 0.14s both;
-    }
-
-    article.card {
-      border-top: 3px solid var(--ink);
-    }
-
-    aside.card {
-      align-self: start;
-      position: sticky;
-      top: 20px;
-      border-top: 3px solid var(--accent);
-    }
-
-    .section-title {
-      margin: 0 0 16px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--line);
-      font-family: var(--sans);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-    }
-
-    .body-text {
-      max-width: 29ch;
-      margin: 0;
-      font-family: var(--serif);
-      font-size: clamp(23px, 2.3vw, 31px);
-      line-height: 1.77;
-      text-wrap: pretty;
-    }
-
-    .nyt-dropcap::first-letter {
-      float: left;
-      font-family: var(--serif);
-      font-size: 4.85rem;
-      line-height: 0.82;
-      padding: 0.09em 0.12em 0 0;
-      color: var(--accent);
-      font-weight: 700;
-    }
-
-    .body-foot {
-      margin-top: 22px;
-      padding-top: 14px;
-      border-top: 1px solid var(--line);
-      font-family: var(--sans);
-      color: var(--muted);
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      line-height: 1.8;
-    }
-
-    .stats {
-      display: grid;
-      gap: 12px;
-    }
-
-    .stat {
-      padding: 16px;
-      border: 1px solid var(--line);
-      border-left: 4px solid var(--accent);
-      background: var(--paper-strong);
-    }
-
-    .stat-label {
-      color: var(--muted);
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      margin-bottom: 8px;
-    }
-
-    .stat-value {
-      font-family: var(--sans);
-      font-size: 30px;
-      font-weight: 800;
-      line-height: 1.05;
-      color: var(--ink);
-    }
-
-    .stat-small .stat-value {
-      font-family: var(--serif);
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--ink);
-    }
-
-    .note-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-
-    .note-item {
-      padding: 14px 16px;
-      border: 1px solid var(--line);
-      background: var(--paper-strong);
-      min-height: 110px;
-    }
-
-    .note-item strong {
-      display: block;
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    .note-item a {
-      color: var(--accent);
-      text-decoration: none;
-      border-bottom: 1px solid transparent;
-      transition: border-color 0.2s ease;
-    }
-
-    .note-item a:hover {
-      border-color: currentColor;
-    }
-
-    .note-value {
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
-    .study-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-      background: rgba(255, 255, 255, 0.78);
-    }
-
-    .study-table th,
-    .study-table td {
-      padding: 12px 12px;
-      border-bottom: 1px solid var(--line);
-      vertical-align: top;
-    }
-
-    .study-table th {
-      text-align: left;
-      color: var(--muted);
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      background: #f8f5ef;
-    }
-
-    .study-table tbody tr:hover {
-      background: rgba(50, 104, 145, 0.045);
-    }
-
-    .study-table tbody tr:nth-child(even) {
-      background: rgba(248, 245, 239, 0.7);
-    }
-
-    .data-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: end;
-      justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 16px;
-    }
-
-    .data-search-wrap {
-      flex: 1 1 320px;
-      max-width: 520px;
-    }
-
-    .data-search-label,
-    .data-summary-label {
-      display: block;
-      margin-bottom: 8px;
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-    }
-
-    .data-search {
-      width: 100%;
-      padding: 13px 14px;
-      border: 1px solid var(--line-strong);
-      background: rgba(255, 255, 255, 0.94);
-      color: var(--ink);
-      font-family: var(--sans);
-      font-size: 15px;
-      outline: none;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .data-search:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(50, 104, 145, 0.12);
-      outline: 2px solid var(--accent);
-    }
-
-    .data-summary {
-      min-width: 180px;
-      padding: 13px 14px;
-      border: 1px solid var(--line);
-      background: var(--paper-strong);
-      font-family: var(--sans);
-      font-size: 13px;
-      line-height: 1.5;
-      color: var(--ink);
-    }
-
-    .table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.92);
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 68px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: 1px solid transparent;
-      font-family: var(--sans);
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    .chip.pass {
-      background: rgba(33, 108, 83, 0.1);
-      border-color: rgba(33, 108, 83, 0.16);
-      color: var(--good);
-    }
-
-    .chip.revise {
-      background: rgba(160, 106, 18, 0.1);
-      border-color: rgba(160, 106, 18, 0.18);
-      color: var(--warn);
-    }
-
-    .chip.block {
-      background: rgba(146, 43, 33, 0.11);
-      border-color: rgba(146, 43, 33, 0.18);
-      color: var(--bad);
-    }
-
-    .chip.pass::before{content:"\2713 "}
-    .chip.revise::before{content:"! "}
-    .chip.block::before{content:"\2717 "}
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .search-layout,
-    .included-grid {
-      display: grid;
-      gap: 14px;
-    }
-
-    .search-layout {
-      grid-template-columns: 1.2fr 0.8fr;
-    }
-
-    .panel {
-      padding: 16px;
-      border: 1px solid var(--line);
-      background: var(--paper-strong);
-    }
-
-    .panel-label {
-      display: block;
-      margin-bottom: 10px;
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-    }
-
-    .panel p {
-      margin: 0;
-      font-size: 16px;
-      line-height: 1.7;
-      color: #2c2723;
-      text-wrap: pretty;
-    }
-
-    .meta-list,
-    .reason-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .meta-row {
-      display: grid;
-      grid-template-columns: 120px 1fr;
-      gap: 12px;
-      align-items: start;
-      padding-top: 10px;
-      border-top: 1px solid var(--line);
-    }
-
-    .meta-row:first-child {
-      padding-top: 0;
-      border-top: 0;
-    }
-
-    .meta-term {
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-    }
-
-    .meta-value {
-      font-size: 15px;
-      line-height: 1.7;
-      color: #2b2622;
-      word-break: break-word;
-    }
-
-    .query-list {
-      display: grid;
-      gap: 12px;
-      margin-top: 14px;
-    }
-
-    .query-card {
-      padding: 14px;
-      border: 1px solid var(--line);
-      background: #fff;
-    }
-
-    .query-title {
-      margin-bottom: 8px;
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-    }
-
-    .query-text {
-      margin: 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-family: var(--mono);
-      font-size: 12px;
-      line-height: 1.75;
-      color: #214159;
-    }
-
-    .prisma-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 16px;
-    }
-
-    .prisma-card {
-      padding: 16px;
-      border: 1px solid var(--line);
-      border-top: 4px solid var(--accent);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 241, 0.94));
-    }
-
-    .prisma-step {
-      margin-bottom: 8px;
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted);
-    }
-
-    .prisma-count {
-      font-family: var(--serif);
-      font-size: 36px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: -0.03em;
-    }
-
-    .prisma-detail {
-      margin-top: 8px;
-      font-size: 14px;
-      color: #2c2723;
-      line-height: 1.6;
-    }
-
-    .reason-item {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.7);
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: baseline;
-    }
-
-    .reason-item strong {
-      font-family: var(--sans);
-      font-size: 12px;
-      letter-spacing: 0.02em;
-    }
-
-    .reason-count {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      white-space: nowrap;
-    }
-
-    .included-grid {
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    }
-
-    .included-card {
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-top: 3px solid var(--ink);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 241, 0.94));
-    }
-
-    .included-title {
-      margin: 0 0 8px;
-      font-family: var(--serif);
-      font-size: 26px;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-    }
-
-    .included-citation {
-      margin: 0 0 14px;
-      font-size: 16px;
-      line-height: 1.72;
-      color: #2c2723;
-      text-wrap: pretty;
-    }
-
-    .data-points {
-      margin-top: 14px;
-      display: grid;
-      gap: 8px;
-    }
-
-    .data-point {
-      padding: 10px 12px;
-      border-left: 3px solid var(--accent);
-      background: rgba(50, 104, 145, 0.05);
-      font-size: 14px;
-      line-height: 1.7;
-      color: #27445a;
-    }
-
-    .analysis-controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-
-    .analysis-btn {
-      padding: 10px 14px;
-      border: 1px solid var(--line-strong);
-      background: #fff;
-      color: var(--muted);
-      font-family: var(--sans);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      cursor: pointer;
-      transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
-    }
-
-    .analysis-btn:hover,
-    .analysis-btn.active {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    .analysis-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-
-    .analysis-stage {
-      min-height: 180px;
-    }
-
-    .analysis-card {
-      padding: 18px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 241, 0.94));
-    }
-
-    .analysis-title {
-      margin: 0 0 10px;
-      font-family: var(--serif);
-      font-size: 28px;
-      line-height: 1.08;
-      letter-spacing: -0.02em;
-    }
-
-    .analysis-summary {
-      margin: 0 0 14px;
-      font-size: 16px;
-      line-height: 1.7;
-      color: #2c2723;
-      text-wrap: pretty;
-    }
-
-    .analysis-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .analysis-item {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.84);
-    }
-
-    .analysis-item strong {
-      display: block;
-      margin-bottom: 4px;
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-    }
-
-    .empty {
-      margin: 0;
-      font-size: 16px;
-      line-height: 1.7;
-      color: var(--muted);
-    }
-
-    .plot-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      padding: 18px;
-      background: rgba(255, 255, 255, 0.9);
-    }
-
-    .plot-caption {
-      margin-top: 14px;
-      color: var(--muted);
-      font-family: var(--sans);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      line-height: 1.8;
-    }
-
-    @media (max-width: 1100px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .search-layout,
-      .prisma-grid {
-        grid-template-columns: 1fr;
-      }
-
-      aside.card {
-        position: static;
-      }
-
-      .hero-rail {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 900px) {
-      .page {
-        width: min(100vw - 28px, 1280px);
-        margin: 14px auto 48px;
-        gap: 18px;
-      }
-
-      .masthead {
-        flex-direction: column;
-        align-items: start;
-      }
-
-      .masthead-meta {
-        text-align: left;
-      }
-
-      .body-text {
-        font-size: 20px;
-      }
-
-      .note-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .included-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .meta-row {
-        grid-template-columns: 1fr;
-        gap: 4px;
-      }
-
-      .data-toolbar {
-        align-items: stretch;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .masthead,
-      .hero,
-      .grid,
-      .card {
-        animation: none;
-      }
-    }
-
-    @media print{.data-search-wrap,.analysis-controls,.data-toolbar,.hero::after{display:none!important}aside.card{position:static!important}.grid{display:block!important}body{background:#fff!important}svg{max-width:100%!important}}
-
-    .skip-link:focus{top:0}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Untitled E156 — E156</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FDFCFA;--text:#1a1a1a;--text2:#555;--accent:#7A5A10;
+  --card:#F5F3EE;--border:#E5E0D6;--link:#2E6B8A;
+  --s1:#2E86C1;--s2:#28B463;--s3:#7D3C98;--s4:#CB4335;
+  --s5:#D68910;--s6:#148F77;--s7:#85929E
+}
+body{
+  font-family:Georgia,'Times New Roman',serif;
+  background:var(--bg);color:var(--text);line-height:1.7;
+  -webkit-font-smoothing:antialiased;padding:0
+}
+.page{max-width:780px;margin:0 auto;padding:3rem 2rem 4rem}
+
+/* ── Masthead ──────────────────────────────────── */
+.masthead{
+  text-align:center;padding:2rem 0 1.5rem;
+  border-bottom:3px double var(--border);margin-bottom:2.5rem
+}
+.masthead-label{
+  font-family:system-ui,-apple-system,sans-serif;font-size:.65rem;
+  font-weight:700;letter-spacing:.25em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:1.2rem
+}
+.masthead h1{font-size:2rem;font-weight:700;line-height:1.25;margin-bottom:.8rem}
+.masthead .byline{
+  font-family:system-ui,sans-serif;font-size:.85rem;color:var(--text2)
+}
+.masthead .byline a{color:var(--link);text-decoration:none}
+
+/* ── Body ──────────────────────────────────────── */
+.body-section{margin-bottom:3rem}
+.body-text{
+  font-size:1.18rem;line-height:2;text-align:justify;hyphens:auto;
+  margin-bottom:1.5rem
+}
+.body-text .s{
+  cursor:pointer;transition:background .2s;border-radius:3px;padding:1px 4px;
+  position:relative
+}
+.body-text .s:hover{background:rgba(0,0,0,.06)}
+.body-text .s[data-r="1"]:hover{background:rgba(46,134,193,.12)}
+.body-text .s[data-r="2"]:hover{background:rgba(40,180,99,.12)}
+.body-text .s[data-r="3"]:hover{background:rgba(125,60,152,.12)}
+.body-text .s[data-r="4"]:hover{background:rgba(203,67,53,.15)}
+.body-text .s[data-r="5"]:hover{background:rgba(214,137,16,.12)}
+.body-text .s[data-r="6"]:hover{background:rgba(20,143,119,.12)}
+.body-text .s[data-r="7"]:hover{background:rgba(133,146,158,.12)}
+.body-text .s::after{
+  content:attr(data-label);position:absolute;bottom:calc(100% + 4px);
+  left:50%;transform:translateX(-50%);font-family:system-ui,sans-serif;
+  font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:#fff;padding:3px 8px;border-radius:3px;white-space:nowrap;
+  opacity:0;transition:opacity .15s;pointer-events:none;z-index:10
+}
+.body-text .s:hover::after{opacity:1}
+.body-text .s[data-r="1"]::after{background:var(--s1)}
+.body-text .s[data-r="2"]::after{background:var(--s2)}
+.body-text .s[data-r="3"]::after{background:var(--s3)}
+.body-text .s[data-r="4"]::after{background:var(--s4)}
+.body-text .s[data-r="5"]::after{background:var(--s5)}
+.body-text .s[data-r="6"]::after{background:var(--s6)}
+.body-text .s[data-r="7"]::after{background:var(--s7)}
+
+/* ── Sentence map ──────────────────────────────── */
+.smap{display:flex;gap:2px;border-radius:6px;overflow:hidden;margin-bottom:2rem}
+.smap-seg{
+  flex:1;padding:8px 4px;text-align:center;cursor:pointer;
+  color:#fff;transition:opacity .15s;font-family:system-ui,sans-serif;
+  font-size:.6rem;font-weight:700;letter-spacing:.04em
+}
+.smap-seg:hover{opacity:.8}
+
+/* ── Figures gallery ───────────────────────────── */
+.figures-section{margin-bottom:3rem}
+.figures-section h2{
+  font-family:system-ui,sans-serif;font-size:.7rem;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--accent);
+  margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)
+}
+.fig-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem}
+.fig-card{
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;transition:box-shadow .2s
+}
+.fig-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.fig-card img{width:100%;height:auto;display:block}
+.fig-card .fig-caption{
+  padding:.6rem .8rem;font-family:system-ui,sans-serif;font-size:.75rem;
+  color:var(--text2);border-top:1px solid var(--border)
+}
+
+/* ── App link ──────────────────────────────────── */
+.app-link-section{margin-bottom:3rem;text-align:center}
+.app-btn{
+  display:inline-block;padding:12px 32px;background:var(--accent);color:#fff;
+  font-family:system-ui,sans-serif;font-size:.9rem;font-weight:600;
+  text-decoration:none;border-radius:6px;transition:background .2s;
+  letter-spacing:.02em
+}
+.app-btn:hover{background:#6d5210}
+
+/* ── Notes ─────────────────────────────────────── */
+.notes-section{
+  background:var(--card);border-radius:8px;padding:1.5rem 1.8rem;
+  margin-bottom:2.5rem
+}
+.notes-section h2{
+  font-family:system-ui,sans-serif;font-size:.7rem;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--accent);
+  margin-bottom:1rem
+}
+.notes-grid{display:grid;grid-template-columns:auto 1fr;gap:.35rem 1rem}
+.notes-grid dt{
+  font-family:system-ui,sans-serif;font-size:.82rem;font-weight:600;color:var(--text)
+}
+.notes-grid dd{font-size:.85rem;color:var(--text2)}
+.notes-grid dd a{color:var(--link);text-decoration:none;word-break:break-all}
+
+/* ── References ────────────────────────────────── */
+.refs-section{margin-bottom:2.5rem}
+.refs-section h2{
+  font-family:system-ui,sans-serif;font-size:.7rem;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--accent);
+  margin-bottom:.8rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)
+}
+.refs-section ol{
+  font-family:system-ui,sans-serif;font-size:.82rem;color:var(--text2);
+  padding-left:1.2rem;line-height:1.8
+}
+
+/* ── Disclosure ────────────────────────────────── */
+.disclosure{
+  font-family:system-ui,sans-serif;font-size:.78rem;color:var(--text2);
+  line-height:1.7;padding:1.2rem 1.5rem;background:var(--card);
+  border-radius:8px;margin-bottom:2.5rem;border-left:3px solid var(--accent)
+}
+.disclosure strong{color:var(--text);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}
+
+/* ── Footer ────────────────────────────────────── */
+.footer{
+  padding-top:1.5rem;border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem
+}
+.footer .meta{font-family:system-ui,sans-serif;font-size:.72rem;color:var(--text2)}
+.footer .meta .check{color:#28B463}
+.footer .actions{display:flex;gap:.5rem}
+.footer .actions button{
+  font-family:system-ui,sans-serif;font-size:.72rem;padding:6px 14px;
+  border:1px solid var(--border);border-radius:4px;background:#fff;
+  color:var(--text);cursor:pointer;transition:background .15s
+}
+.footer .actions button:hover{background:var(--card)}
+
+/* ── Print ─────────────────────────────────────── */
+@media print{
+  .smap,.footer .actions,.app-link-section,.skip-link{display:none!important}
+  .s::after{display:none!important}
+  body{padding:0;background:#fff}
+  .page{max-width:100%;padding:1rem}
+  .fig-card{break-inside:avoid}
+  .fig-card img{max-height:400px;object-fit:contain}
+  .refs-section{page-break-before:auto}
+}
+
+/* ── Mobile ────────────────────────────────────── */
+@media(max-width:640px){
+  .page{padding:1.5rem 1rem}
+  .masthead h1{font-size:1.5rem}
+  .body-text{font-size:1.05rem}
+  .fig-grid{grid-template-columns:1fr}
+  .smap-seg{font-size:.5rem;padding:6px 2px}
+}
+@media(max-width:400px){
+  .page{padding:1rem .7rem}
+  .masthead h1{font-size:1.2rem}
+  .body-text{font-size:.95rem}
+}
+
+/* ── Skip link ─────────────────────────────────── */
+.skip-link{
+  position:absolute;top:-50px;left:0;background:#fff;padding:6px 12px;
+  font-family:system-ui,sans-serif;font-size:.82rem;z-index:999;
+  border:1px solid var(--border);border-radius:4px
+}
+.skip-link:focus{top:8px;left:8px}
+
+/* ── Reduced motion ────────────────────────────── */
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
 </head>
 <body>
-  <a href="#study-filter" class="skip-link" style="position:absolute;top:-40px;left:0;z-index:999;background:#fff;padding:4px 8px;font-size:14px">Skip to data explorer</a>
-  <main class="page">
-    <header class="masthead">
-      <div class="masthead-brand">E156 Interactive Edition</div>
-      <div class="masthead-meta" id="masthead-meta">Interactive paper companion</div>
-    </header>
+<a href="#notes" class="skip-link">Skip to notes</a>
+<div class="page">
 
-    <section class="hero">
-      <div class="eyebrow">Interactive Paper Companion</div>
-      <h1 id="title" class="nyt-headline"></h1>
-      <p class="lede nyt-subhead" id="lede"></p>
-      <div class="hero-rail">
-        <div id="hero-type">Type</div>
-        <div id="hero-version">Version</div>
-        <div id="hero-date">Date</div>
-      </div>
-    </section>
+  <header class="masthead">
+    <div class="masthead-label">E156 Micro-Paper</div>
+    <h1 id="title"></h1>
+    <div class="byline" id="byline"></div>
+  </header>
 
-    <section class="grid">
-      <article class="card">
-        <h2 class="section-title">Paper</h2>
-        <p class="body-text nyt-dropcap" id="body"></p>
-        <div class="body-foot" id="body-foot">The frozen body stands alone while the surrounding page carries the wider evidence layer.</div>
-      </article>
+  <section class="body-section">
+    <p class="body-text" id="body"></p>
+    <div class="smap" id="smap" role="group" aria-label="Sentence roles"></div>
+  </section>
 
-      <aside class="card">
-        <h2 class="section-title">Evidence Snapshot</h2>
-        <div class="stats" id="core-stats"></div>
-      </aside>
-    </section>
+  <section class="figures-section" id="figures-section" style="display:none">
+    <h2>Figures</h2>
+    <div class="fig-grid" id="fig-grid"></div>
+  </section>
 
-    <section class="card">
-      <h2 class="section-title">Search Strategy</h2>
-      <div id="search-strategy"></div>
-    </section>
+  <section class="app-link-section" id="app-section" style="display:none">
+    <a class="app-btn" id="app-btn" target="_blank">Open Interactive App</a>
+  </section>
 
-    <section class="card">
-      <h2 class="section-title">PRISMA Flow</h2>
-      <div id="prisma-flow"></div>
-    </section>
+  <section class="notes-section" id="notes">
+    <h2>Outside Notes</h2>
+    <dl class="notes-grid" id="notes-grid"></dl>
+  </section>
 
-    <section class="card">
-      <h2 class="section-title">Included Papers</h2>
-      <div id="included-papers"></div>
-    </section>
+  <section class="refs-section" id="refs-section" style="display:none">
+    <h2>References</h2>
+    <ol id="refs-list"></ol>
+  </section>
 
-    <section class="card">
-      <h2 class="section-title">Interactive Plot</h2>
-      <div class="plot-wrap">
-        <svg id="forest-plot" width="980" height="360" role="img" aria-labelledby="forest-title" viewBox="0 0 980 360"></svg>
-      </div>
-      <div class="plot-caption" id="plot-caption"></div>
-    </section>
+  <section class="disclosure" id="disclosure" style="display:none">
+    <strong>AI Disclosure</strong><br><br>
+    <span id="disclosure-text"></span>
+  </section>
 
-    <section class="card">
-      <h2 class="section-title">Analysis Explorer</h2>
-      <div class="analysis-controls" id="analysis-controls"></div>
-      <div class="analysis-stage" id="analysis-stage"></div>
-    </section>
+  <footer class="footer">
+    <div class="meta">
+      <span id="wc"></span> words <span class="check" id="wc-check"></span> &middot;
+      7 sentences &middot; E156 v0.2
+    </div>
+    <div class="actions">
+      <button onclick="copyBody(event)">Copy</button>
+      <button onclick="downloadJSON()">JSON</button>
+      <button onclick="window.print()">Print</button>
+    </div>
+  </footer>
 
-    <section class="card">
-      <h2 class="section-title">Methods And Sources</h2>
-      <div class="note-grid" id="note-grid"></div>
-    </section>
+</div>
 
-    <section class="card">
-      <h2 class="section-title">Data Explorer</h2>
-      <div class="data-toolbar">
-        <div class="data-search-wrap">
-          <label class="data-search-label" for="study-filter">Filter studies or effects</label>
-          <input id="study-filter" class="data-search" type="search" placeholder="Search study label, effect, or weight">
-        </div>
-        <div>
-          <div class="data-summary-label">Rows shown</div>
-          <div class="data-summary" id="data-summary" aria-live="polite" aria-atomic="true">0 rows</div>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table class="study-table" id="study-table"></table>
-      </div>
-    </section>
-  </main>
-
-  <script>
-    const E156_ARTICLE = {
-  "title": "TrustGate: Significance Erosion and Guideline Exposure When Meta-Analyses Are Weighted by Trust",
-  "body": "How many significant Cochrane meta-analytic findings survive when weighted by composite trust scores, and do low-trust meta-analyses disproportionately influence practice? We applied trust-weighted analysis to 888 significant meta-analyses from 6,229 Cochrane reviews, combining inverse-variance weighting adjusted by EvidenceScore with threshold gating at five levels and guideline exposure mapping across 14 domains. Trust-adjusted z-statistics were computed as the original z multiplied by the square root of the trust fraction, with results below 1.96 classified as eroded. At the B-plus threshold (score 70 or above), 63.9% of significant findings were eroded, with pain research most affected at 73.2% and cancer most resilient at 34.2% erosion. We identified 104 Red Flag meta-analyses combining low trust with high clinical influence across 12 reviews, alongside 366 Hidden Gems with high trust but low utilisation. Trust-calibrated synthesis could redirect clinical attention from unreliable toward underutilised high-quality meta-analyses. The influence score excludes direct guideline citation data, limiting precision of clinical exposure estimates.",
-  "sentences": [
-    {
-      "role": "Question",
-      "text": "How many significant Cochrane meta-analytic findings survive when weighted by composite trust scores, and do low-trust meta-analyses disproportionately influence practice?"
-    },
-    {
-      "role": "Dataset",
-      "text": "We applied trust-weighted analysis to 888 significant meta-analyses from 6,229 Cochrane reviews, combining inverse-variance weighting adjusted by EvidenceScore with threshold gating at five levels and guideline exposure mapping across 14 domains."
-    },
-    {
-      "role": "Method",
-      "text": "Trust-adjusted z-statistics were computed as the original z multiplied by the square root of the trust fraction, with results below 1.96 classified as eroded."
-    },
-    {
-      "role": "Primary result",
-      "text": "At the B-plus threshold (score 70 or above), 63.9% of significant findings were eroded, with pain research most affected at 73.2% and cancer most resilient at 34.2% erosion."
-    },
-    {
-      "role": "Robustness",
-      "text": "We identified 104 Red Flag meta-analyses combining low trust with high clinical influence across 12 reviews, alongside 366 Hidden Gems with high trust but low utilisation."
-    },
-    {
-      "role": "Interpretation",
-      "text": "Trust-calibrated synthesis could redirect clinical attention from unreliable toward underutilised high-quality meta-analyses."
-    },
-    {
-      "role": "Boundary",
-      "text": "The influence score excludes direct guideline citation data, limiting precision of clinical exposure estimates."
-    }
-  ],
-  "wordCount": 156,
-  "sentenceCount": 7,
-  "outsideNote": {
-    "type": "methods",
-    "primary_estimand": "Significance erosion rate at trust threshold 70",
-    "app": "TrustGate v1.0",
-    "data": "6,229 meta-analyses from 501 Cochrane reviews, 888 significant",
-    "code": "C:\\Models\\TrustGate\\",
-    "doi": "",
-    "version": "1.0",
-    "date": "2026-04-01",
-    "certainty": "moderate",
-    "validationStatus": "PASS"
+<script>
+const D = {
+  "title": "Untitled E156",
+  "summary": "",
+  "type": "methods",
+  "primary_estimand": "",
+  "study_count": null,
+  "participant_count": null,
+  "version": "1.0",
+  "date": "2026-03-26",
+  "certainty": "",
+  "app": "",
+  "data": "",
+  "code": "https://github.com/mahmood726-cyber/trustgate",
+  "doi": "",
+  "protocol": "",
+  "source_article": "",
+  "body": "",
+  "validation": {
+    "status": "fail",
+    "checks": [
+      {
+        "name": "single paragraph",
+        "ok": true,
+        "detail": "Body must not contain blank-line paragraph breaks."
+      },
+      {
+        "name": "sentence count",
+        "ok": false,
+        "detail": "Found 0 sentences."
+      },
+      {
+        "name": "word count",
+        "ok": true,
+        "detail": "Found 0 words."
+      },
+      {
+        "name": "no headings",
+        "ok": true,
+        "detail": "No markdown headings allowed in body."
+      },
+      {
+        "name": "no links",
+        "ok": true,
+        "detail": "No links or DOI links allowed in body."
+      },
+      {
+        "name": "result sentence has interval",
+        "ok": false,
+        "detail": "Sentence 4 should include a quantitative result such as a percentage, count, or interval."
+      },
+      {
+        "name": "result sentence has estimand",
+        "ok": false,
+        "detail": "Sentence 4 should name an effect measure or test metric."
+      },
+      {
+        "name": "boundary sentence present",
+        "ok": false,
+        "detail": "Sentence 7 should express a limitation, harm, or scope boundary."
+      }
+    ]
   },
-  "meta": {
-    "created": "2026-04-01",
-    "valid": true,
-    "schemaVersion": "0.2"
-  }
+  "sentences": [],
+  "primary_plot": {},
+  "studies": [],
+  "search_strategy": {},
+  "prisma": {},
+  "included_papers": [],
+  "analysis_modules": [],
+  "author": "Mahmood Ahmad",
+  "affiliation": "Tahir Heart Institute",
+  "email": "mahmood.ahmad2@nhs.net",
+  "slug": "trustgate",
+  "references": [],
+  "_assets": [],
+  "_disclosure": "This work represents a compiler-generated evidence micro-publication. AI is used as a constrained synthesis engine operating on structured inputs and predefined rules, rather than as an autonomous author. All results and text were reviewed and verified by the author, who takes full responsibility for the content."
 };
 
-    function el(tag, className, text) {
-      const node = document.createElement(tag);
-      if (className) node.className = className;
-      if (text !== undefined) node.textContent = text;
-      return node;
+const ROLES = [
+  {key:"question",      label:"S1 Question",      color:"#2E86C1"},
+  {key:"dataset",        label:"S2 Dataset",        color:"#28B463"},
+  {key:"method",         label:"S3 Method",         color:"#7D3C98"},
+  {key:"result",         label:"S4 Primary Result", color:"#CB4335"},
+  {key:"robustness",     label:"S5 Robustness",     color:"#D68910"},
+  {key:"interpretation", label:"S6 Interpretation", color:"#148F77"},
+  {key:"boundary",       label:"S7 Boundary",       color:"#85929E"}
+];
+
+function esc(s){const d=document.createElement("div");d.textContent=String(s??"");return d.innerHTML}
+
+// ── Title + byline ──
+document.getElementById("title").textContent = D.title || "Untitled";
+document.title = (D.title||"E156") + " \u2014 E156 Interactive Paper";
+
+const parts = [];
+if(D.author) parts.push(esc(D.author));
+if(D.affiliation) parts.push(esc(D.affiliation));
+if(D.email) parts.push('<a href="mailto:'+esc(D.email)+'">'+esc(D.email)+'</a>');
+if(D.date) parts.push(esc(D.date));
+document.getElementById("byline").innerHTML = parts.join(" &middot; ");
+
+// ── Body with sentence highlighting ──
+const body = D.body || "";
+const sents = D.sentences || [];
+const bodyEl = document.getElementById("body");
+
+if(sents.length === 7){
+  bodyEl.innerHTML = sents.map((s,i) => {
+    const txt = typeof s === "string" ? s : (s.text || "");
+    return '<span class="s" tabindex="0" role="note" aria-label="'+ROLES[i].label+'" data-r="'+(i+1)+'" data-label="'+ROLES[i].label+'">'+esc(txt)+'</span>';
+  }).join(" ");
+} else {
+  bodyEl.textContent = body;
+}
+
+// ── Sentence map ──
+const smap = document.getElementById("smap");
+ROLES.forEach((r,i) => {
+  const seg = document.createElement("div");
+  seg.className = "smap-seg";
+  seg.style.background = r.color;
+  seg.textContent = r.label.split(" ")[0];
+  seg.title = r.label;
+  seg.setAttribute("tabindex","0");
+  seg.setAttribute("role","button");
+  seg.setAttribute("aria-label",r.label);
+  const activate = () => {
+    const s = bodyEl.querySelector('.s[data-r="'+(i+1)+'"]');
+    if(s){s.scrollIntoView({behavior:"smooth",block:"center"});
+      bodyEl.querySelectorAll(".s").forEach(x=>x.style.background="");
+      const colors = ["","rgba(46,134,193,.15)","rgba(40,180,99,.15)","rgba(125,60,152,.15)",
+        "rgba(203,67,53,.18)","rgba(214,137,16,.15)","rgba(20,143,119,.15)","rgba(133,146,158,.15)"];
+      s.style.background = colors[i+1] || "";
     }
-
-    function esc(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
-
-    function normalizeVerdict(v){const s=String(v||'').toLowerCase();if(s==='pass'||s==='accept')return'pass';if(s==='block'||s==='reject'||s==='fail')return'block';return'revise';}
-    function personaLabel(name){return String(name||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
-
-    function appendStat(container, label, value, useSmallValue) {
-      const card = el("div", useSmallValue ? "stat stat-small" : "stat");
-      card.append(el("div", "stat-label", label));
-      card.append(el("div", "stat-value", value ?? "-"));
-      container.append(card);
-    }
-
-    function renderCore(article) {
-      document.title = (article.title || "E156") + " — E156 Interactive Paper";
-      document.getElementById("title").textContent = article.title || "Untitled E156 record";
-      document.getElementById("lede").textContent =
-        article.summary ||
-        "A frozen 156-word body paired with a richer interactive evidence layer.";
-      document.getElementById("body").textContent = article.body || "";
-      document.getElementById("masthead-meta").textContent = `${article.date || "Undated"} | ${article.version || "No version"} | interactive paper companion`;
-      document.getElementById("hero-type").textContent = `Type: ${article.type || "-"}`;
-      document.getElementById("hero-version").textContent = `Version: ${article.version || "-"}`;
-      document.getElementById("hero-date").textContent = `Date: ${article.date || "-"}`;
-      document.getElementById("body-foot").textContent =
-        `Primary estimand: ${article.primary_estimand || "-"} | certainty: ${article.certainty || "-"} | search strategy, PRISMA, included papers, analysis options, and study data are embedded below.`;
-
-      const core = document.getElementById("core-stats");
-      core.innerHTML = "";
-      appendStat(core, "Type", article.type);
-      appendStat(core, "Primary Estimand", article.primary_estimand, true);
-      appendStat(core, "Studies", article.study_count);
-      appendStat(core, "Participants", article.participant_count);
-      appendStat(core, "Version", article.version, true);
-      appendStat(core, "Certainty", article.certainty, true);
-    }
-
-    function renderNotes(article) {
-      const fields = [
-        ["App", article.app],
-        ["Data", article.data],
-        ["Code", article.code],
-        ["DOI", article.doi],
-        ["Version", article.version],
-        ["Date", article.date],
-        ["Protocol", article.protocol],
-        ["Source article", article.source_article]
-      ];
-
-      const grid = document.getElementById("note-grid");
-      grid.innerHTML = "";
-      fields.forEach(([label, value]) => {
-        const item = el("div", "note-item");
-        item.append(el("strong", "", label));
-        if (!value) {
-          item.append(el("div", "note-value", "-"));
-        } else if (typeof value === "string" && /^https?:/i.test(value)) {
-          const link = el("a", "note-value", value);
-          link.href = value;
-          link.target = "_blank";
-          link.rel = "noreferrer";
-          item.append(link);
-        } else {
-          item.append(el("div", "note-value", String(value)));
-        }
-        grid.append(item);
-      });
-    }
-
-    function renderValidation(article) {
-      const table = document.getElementById("validation-table"); if(!table) return;
-      const checks = article.validation?.checks || [];
-      checks.forEach((check) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td><span class="chip ${check.ok ? "pass" : "block"}">${check.ok ? "PASS" : "FAIL"}</span></td><td>${esc(check.name)}</td><td>${esc(check.detail || "")}</td>`;
-        table.append(row);
-      });
-    }
-
-    function renderReviewBoard(article) {
-      const board = document.getElementById("review-board"); if(!board) return;
-      const review = article.review || null;
-
-      if (!review || !review.personas || !Object.keys(review.personas).length) {
-        board.innerHTML = `<div><span class="chip">PENDING</span> Reviewer assignments appear when a multi-persona review is attached.</div>`;
-        return;
-      }
-
-      board.innerHTML = "";
-      Object.entries(review.personas || {}).forEach(([name, persona]) => {
-        const item = document.createElement("article");
-        const personaVerdict = normalizeVerdict(persona.verdict);
-        const reviewerId = persona.reviewer_id || personaLabel(name);
-        const signedAt = persona.signed_at || review.reviewed_at || article.date || "-";
-        item.className = "review-board-item";
-        item.innerHTML = `
-          <div class="review-card-head">
-            <div>
-              <div class="review-board-role">${esc(personaLabel(name))}</div>
-              <div class="review-board-name">${esc(reviewerId)}</div>
-            </div>
-            <span class="chip ${personaVerdict}">${esc(String(persona.verdict || "unknown").toUpperCase())}</span>
-          </div>
-          <div class="review-board-meta">Signed ${esc(signedAt)}</div>
-        `;
-        board.append(item);
-      });
-    }
-
-    function renderReview(article) {
-      const table = document.getElementById("review-table"); if(!table) return;
-      const review = article.review || null;
-      const summary = article.review_summary || null;
-
-      if (!review || !summary) {
-        table.innerHTML = `<div><span class="chip">NONE</span> No multi-persona review attached.</div>`;
-        return;
-      }
-
-      const actions = (summary.required_actions || [])
-        .map((entry) => `${esc(entry.persona)}: ${esc(entry.action)}`)
-        .join(" | ");
-      const verdict = normalizeVerdict(summary.gate);
-      table.innerHTML = `
-        <div class="consensus-card">
-          <div class="consensus-head">
-            <div>
-              <div class="consensus-label">Consensus Gate</div>
-              <div class="consensus-value">${esc(String(summary.gate || "unknown").toUpperCase())}</div>
-              <div class="consensus-meta">Filed ${esc(review.reviewed_at || article.date || "-")}</div>
-            </div>
-            <span class="chip ${verdict}">${esc(String(summary.gate || "unknown").toUpperCase())}</span>
-          </div>
-          <div>Pass ${summary.verdict_counts?.pass ?? 0} | Revise ${summary.verdict_counts?.revise ?? 0} | Block ${summary.verdict_counts?.block ?? 0}</div>
-          <div style="margin-top:10px; color: var(--muted);">${actions || "No mandatory actions recorded."}</div>
-        </div>
-        <div class="review-grid" id="review-grid"></div>
-      `;
-
-      const grid = document.getElementById("review-grid");
-      Object.entries(review.personas || {}).forEach(([name, persona]) => {
-        const card = document.createElement("article");
-        const personaVerdict = normalizeVerdict(persona.verdict);
-        const reviewerId = persona.reviewer_id || personaLabel(name);
-        const signedAt = persona.signed_at || review.reviewed_at || article.date || "-";
-        const actionsList = Array.isArray(persona.required_actions) && persona.required_actions.length
-          ? `<div class="review-actions"><strong>Required actions</strong><ul>${persona.required_actions.map((action) => `<li>${esc(action)}</li>`).join("")}</ul></div>`
-          : "";
-        card.className = "review-card";
-        card.innerHTML = `
-          <div class="review-card-head">
-            <div class="reviewer-name">${esc(personaLabel(name))}</div>
-            <span class="chip ${personaVerdict}">${esc(String(persona.verdict || "unknown").toUpperCase())}</span>
-          </div>
-          <div class="review-focus">${esc(persona.focus || "")}</div>
-          <p class="review-notes">${esc(persona.notes || "")}</p>
-          ${actionsList}
-          <div class="review-signoff">Signed ${esc(signedAt)} by ${esc(reviewerId)}</div>
-        `;
-        grid.append(card);
-      });
-    }
-
-    function renderSearchStrategy(article) {
-      const mount = document.getElementById("search-strategy");
-      const search = article.search_strategy || {};
-      const databases = Array.isArray(search.databases) ? search.databases.filter(Boolean) : [];
-      const registers = Array.isArray(search.registers) ? search.registers.filter(Boolean) : [];
-      const filters = Array.isArray(search.filters) ? search.filters.filter(Boolean) : [];
-      const queries = Array.isArray(search.queries) ? search.queries.filter(Boolean) : [];
-
-      if (!search.summary && !databases.length && !registers.length && !filters.length && !queries.length && !search.date_range && !search.last_searched) {
-        mount.innerHTML = `<p class="empty">Search strategy details are not embedded in this companion yet.</p>`;
-        return;
-      }
-
-      mount.innerHTML = `
-        <div class="search-layout">
-          <div class="panel" id="search-summary-panel"></div>
-          <div class="panel" id="search-meta-panel"></div>
-        </div>
-        <div class="query-list" id="query-list"></div>
-      `;
-
-      const summaryPanel = document.getElementById("search-summary-panel");
-      summaryPanel.append(el("span", "panel-label", "Search overview"));
-      summaryPanel.append(el("p", "", search.summary || "Search strategy embedded for transparency."));
-
-      if (databases.length) {
-        const label = el("span", "panel-label", "Databases");
-        label.style.marginTop = "14px";
-        summaryPanel.append(label);
-        const wrap = el("div", "chips");
-        databases.forEach((item) => wrap.append(el("span", "chip", String(item))));
-        summaryPanel.append(wrap);
-      }
-
-      if (registers.length) {
-        const label = el("span", "panel-label", "Registers");
-        label.style.marginTop = "14px";
-        summaryPanel.append(label);
-        const wrap = el("div", "chips");
-        registers.forEach((item) => wrap.append(el("span", "chip", String(item))));
-        summaryPanel.append(wrap);
-      }
-
-      if (filters.length) {
-        const label = el("span", "panel-label", "Filters");
-        label.style.marginTop = "14px";
-        summaryPanel.append(label);
-        const wrap = el("div", "chips");
-        filters.forEach((item) => wrap.append(el("span", "chip", String(item))));
-        summaryPanel.append(wrap);
-      }
-
-      const metaPanel = document.getElementById("search-meta-panel");
-      metaPanel.append(el("span", "panel-label", "Search metadata"));
-      const metaList = el("div", "meta-list");
-      [
-        ["Coverage", search.date_range],
-        ["Last searched", search.last_searched],
-        ["Interface", search.interface],
-        ["Language limits", search.language_limits]
-      ].forEach(([label, value]) => {
-        if (!value) return;
-        const row = el("div", "meta-row");
-        row.append(el("div", "meta-term", label));
-        row.append(el("div", "meta-value", String(value)));
-        metaList.append(row);
-      });
-      if (metaList.children.length) {
-        metaPanel.append(metaList);
-      } else {
-        metaPanel.append(el("p", "", "No additional search metadata embedded."));
-      }
-
-      const queryList = document.getElementById("query-list");
-      if (!queries.length) {
-        queryList.append(el("p", "empty", "No explicit search strings are embedded in this companion."));
-        return;
-      }
-
-      queries.forEach((query) => {
-        const card = el("div", "query-card");
-        card.append(el("div", "query-title", query.label || "Query"));
-        card.append(el("pre", "query-text", query.text || ""));
-        queryList.append(card);
-      });
-    }
-
-    function renderPrisma(article) {
-      const mount = document.getElementById("prisma-flow");
-      const prisma = article.prisma || {};
-      const steps = [
-        ["Identified", prisma.identified, prisma.identified_detail],
-        ["Screened", prisma.screened, prisma.screened_detail],
-        ["Full text", prisma.full_text_assessed, prisma.full_text_detail],
-        ["Included", prisma.included, prisma.included_detail]
-      ];
-      const reasons = Array.isArray(prisma.exclusion_reasons) ? prisma.exclusion_reasons.filter(Boolean) : [];
-      const hasCounts = steps.some(([, count]) => count !== undefined && count !== null && count !== "");
-
-      if (!hasCounts && !reasons.length) {
-        mount.innerHTML = `<p class="empty">PRISMA counts are not embedded in this companion yet.</p>`;
-        return;
-      }
-
-      const grid = el("div", "prisma-grid");
-      steps.forEach(([label, count, detail]) => {
-        if (count === undefined || count === null || count === "") return;
-        const card = el("div", "prisma-card");
-        card.append(el("div", "prisma-step", label));
-        card.append(el("div", "prisma-count", String(count)));
-        if (detail) card.append(el("div", "prisma-detail", String(detail)));
-        grid.append(card);
-      });
-      mount.append(grid);
-
-      const reasonList = el("div", "reason-list");
-      [
-        prisma.duplicates_removed !== undefined && prisma.duplicates_removed !== null ? { reason: "Duplicates removed", count: prisma.duplicates_removed } : null,
-        prisma.excluded_title_abstract !== undefined && prisma.excluded_title_abstract !== null ? { reason: "Excluded at title or abstract screen", count: prisma.excluded_title_abstract } : null,
-        prisma.full_text_excluded !== undefined && prisma.full_text_excluded !== null ? { reason: "Excluded after full-text review", count: prisma.full_text_excluded } : null,
-        ...reasons
-      ].filter(Boolean).forEach((item) => {
-        const row = el("div", "reason-item");
-        row.append(el("strong", "", String(item.reason || "Reason")));
-        row.append(el("div", "reason-count", `${item.count ?? "-"} records`));
-        reasonList.append(row);
-      });
-      if (reasonList.children.length) {
-        mount.append(reasonList);
-      }
-    }
-
-    function renderIncludedPapers(article) {
-      const mount = document.getElementById("included-papers");
-      const papers = Array.isArray(article.included_papers) ? article.included_papers.filter(Boolean) : [];
-
-      if (!papers.length) {
-        mount.innerHTML = `<p class="empty">Included-paper references are not embedded in this companion yet.</p>`;
-        return;
-      }
-
-      const grid = el("div", "included-grid");
-      papers.forEach((paper) => {
-        const card = el("article", "included-card");
-        card.append(el("h3", "included-title", paper.label || paper.short_title || "Included paper"));
-        card.append(el("p", "included-citation", paper.citation || "Reference not provided."));
-
-        const meta = el("div", "meta-list");
-        [
-          ["Identifier", paper.identifier],
-          ["Design", paper.design],
-          ["Sample", paper.sample],
-          ["Population", paper.population],
-          ["Intervention", paper.intervention],
-          ["Comparator", paper.comparator],
-          ["Follow-up", paper.follow_up],
-          ["Location", paper.location]
-        ].forEach(([label, value]) => {
-          if (!value) return;
-          const row = el("div", "meta-row");
-          row.append(el("div", "meta-term", label));
-          row.append(el("div", "meta-value", String(value)));
-          meta.append(row);
-        });
-        if (meta.children.length) card.append(meta);
-
-        const points = Array.isArray(paper.data_points) ? paper.data_points.filter(Boolean) : [];
-        if (points.length) {
-          const wrap = el("div", "data-points");
-          points.forEach((point) => wrap.append(el("div", "data-point", String(point))));
-          card.append(wrap);
-        }
-
-        grid.append(card);
-      });
-      mount.append(grid);
-    }
-
-    function renderAnalysisExplorer(article) {
-      const controls = document.getElementById("analysis-controls");
-      const stage = document.getElementById("analysis-stage");
-      const analyses = Array.isArray(article.analysis_modules) ? article.analysis_modules.filter(Boolean) : [];
-
-      if (!analyses.length) {
-        controls.innerHTML = "";
-        stage.innerHTML = `<p class="empty">Analysis modules are not embedded in this companion yet.</p>`;
-        return;
-      }
-
-      controls.innerHTML = "";
-      stage.innerHTML = "";
-
-      const renderModule = (module) => {
-        stage.innerHTML = "";
-        const card = el("div", "analysis-card");
-        card.append(el("h3", "analysis-title", module.title || "Analysis"));
-        if (module.summary) {
-          card.append(el("p", "analysis-summary", module.summary));
-        }
-
-        const list = el("div", "analysis-list");
-        [
-          ["Method", module.method],
-          ["Result", module.result],
-          ["Interpretation", module.interpretation],
-          ["Model", module.model],
-          ["P value", module.p_value],
-          ["Notes", module.notes]
-        ].forEach(([label, value]) => {
-          if (!value) return;
-          const item = el("div", "analysis-item");
-          item.append(el("strong", "", label));
-          item.append(el("div", "", String(value)));
-          list.append(item);
-        });
-
-        const items = Array.isArray(module.items) ? module.items.filter(Boolean) : [];
-        items.forEach((entry) => {
-          const item = el("div", "analysis-item");
-          if (entry.label) item.append(el("strong", "", entry.label));
-          item.append(el("div", "", entry.value ? String(entry.value) : String(entry)));
-          list.append(item);
-        });
-
-        if (list.children.length) {
-          card.append(list);
-        }
-        stage.append(card);
-      };
-
-      analyses.forEach((module, index) => {
-        const button = el("button", "analysis-btn", module.short_label || module.title || `Analysis ${index + 1}`);
-        button.type = "button";
-        button.addEventListener("click", () => {
-          controls.querySelectorAll(".analysis-btn").forEach((node) => node.classList.remove("active"));
-          button.classList.add("active");
-          renderModule(module);
-        });
-        if (index === 0) button.classList.add("active");
-        controls.append(button);
-      });
-
-      renderModule(analyses[0]);
-    }
-
-    function renderStudyTable(article) {
-      const table = document.getElementById("study-table");
-      const searchInput = document.getElementById("study-filter");
-      const summary = document.getElementById("data-summary");
-      const studies = article.studies || [];
-      const columnCandidates = [
-        ["label", "Study"],
-        ["citation", "Reference"],
-        ["year", "Year"],
-        ["design", "Design"],
-        ["sample", "Sample"],
-        ["intervention", "Intervention"],
-        ["comparator", "Comparator"],
-        ["effect", "Effect"],
-        ["lower", "Lower"],
-        ["upper", "Upper"],
-        ["weight", "Weight"]
-      ];
-      const activeColumns = columnCandidates.filter(([key]) =>
-        studies.some((study) => study[key] !== undefined && study[key] !== null && study[key] !== "")
-      );
-
-      const renderRows = () => {
-        const query = String(searchInput?.value || "").trim().toLowerCase();
-        const filtered = studies.filter((study) => {
-          if (!query) return true;
-          const haystack = Object.values(study).map((value) => String(value ?? "").toLowerCase()).join(" ");
-          return haystack.includes(query);
-        });
-
-        table.innerHTML = `
-          <thead>
-            <tr>
-              ${(activeColumns.length ? activeColumns : columnCandidates.slice(0, 5)).map(([, label]) => `<th>${label}</th>`).join("")}
-            </tr>
-          </thead>
-          <tbody></tbody>
-        `;
-        const tbody = table.querySelector("tbody");
-        const columns = activeColumns.length ? activeColumns : columnCandidates.slice(0, 5);
-
-        if (!studies.length) {
-          const row = document.createElement("tr");
-          row.innerHTML = `<td colspan="${columns.length}">No study-level rows are embedded in this interactive companion.</td>`;
-          tbody.append(row);
-          summary.textContent = "0 of 0 rows";
-          return;
-        }
-
-        if (!filtered.length) {
-          const row = document.createElement("tr");
-          row.innerHTML = `<td colspan="${columns.length}">No rows match the current filter.</td>`;
-          tbody.append(row);
-          summary.textContent = `0 of ${studies.length} rows`;
-          return;
-        }
-
-        filtered.forEach((study) => {
-          const row = document.createElement("tr");
-          row.innerHTML = columns.map(([key]) => `<td>${esc(study[key] ?? "")}</td>`).join("");
-          tbody.append(row);
-        });
-
-        summary.textContent = `${filtered.length} of ${studies.length} rows`;
-      };
-
-      if (searchInput) {
-        searchInput.addEventListener("input", renderRows);
-      }
-      renderRows();
-    }
-
-    function drawForest(article) {
-      const svg = document.getElementById("forest-plot");
-      const width = Number(svg.getAttribute("width"));
-      const height = Number(svg.getAttribute("height"));
-      const margin = { top: 36, right: 36, bottom: 48, left: 240 };
-      const studies = article.studies || [];
-      const pooled = article.primary_plot?.pooled || null;
-      const reference = article.primary_plot?.reference ?? 1;
-
-      while (svg.firstChild) svg.removeChild(svg.firstChild);
-      const titleEl=document.createElementNS("http://www.w3.org/2000/svg","title");titleEl.id="forest-title";titleEl.textContent=`Forest plot: ${article.title||'study-level effects'}`;svg.prepend(titleEl);
-
-      const points = [];
-      studies.forEach((s) => {
-        if ([s.effect, s.lower, s.upper].every((v) => Number.isFinite(Number(v)))) {
-          points.push({
-            label: s.label,
-            effect: Number(s.effect),
-            lower: Number(s.lower),
-            upper: Number(s.upper),
-            pooled: false
-          });
-        }
-      });
-      if (pooled && [pooled.effect, pooled.lower, pooled.upper].every((v) => Number.isFinite(Number(v)))) {
-        points.push({
-          label: pooled.label || "Pooled",
-          effect: Number(pooled.effect),
-          lower: Number(pooled.lower),
-          upper: Number(pooled.upper),
-          pooled: true
-        });
-      }
-
-      if (!points.length) {
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", "24");
-        text.setAttribute("y", "48");
-        text.textContent = "No numeric plot data embedded.";
-        svg.append(text);
-        return;
-      }
-
-      const minX = Math.min(...points.map((p) => p.lower), reference);
-      const maxX = Math.max(...points.map((p) => p.upper), reference);
-      const useLog = ['pairwise','network','dta'].includes(article.type) || article.primary_plot?.log_scale === true;
-      const xform = useLog ? Math.log : v => v;
-      const plotWidth = width - margin.left - margin.right;
-      const plotHeight = height - margin.top - margin.bottom;
-      const rowGap = plotHeight / Math.max(points.length, 1);
-      const tMinX = xform(minX);
-      const tMaxX = xform(maxX);
-
-      const scale = (value) => {
-        const tv = xform(value);
-        if (tMaxX === tMinX) return margin.left + plotWidth / 2;
-        return margin.left + ((tv - tMinX) / (tMaxX - tMinX)) * plotWidth;
-      };
-
-      const axis = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      axis.setAttribute("x1", margin.left);
-      axis.setAttribute("x2", width - margin.right);
-      axis.setAttribute("y1", height - margin.bottom);
-      axis.setAttribute("y2", height - margin.bottom);
-      axis.setAttribute("stroke", "#46505c");
-      svg.append(axis);
-
-      const ref = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      ref.setAttribute("x1", scale(reference));
-      ref.setAttribute("x2", scale(reference));
-      ref.setAttribute("y1", margin.top / 2);
-      ref.setAttribute("y2", height - margin.bottom);
-      ref.setAttribute("stroke", "#9a6a4d");
-      ref.setAttribute("stroke-dasharray", "5 5");
-      svg.append(ref);
-
-      points.forEach((point, index) => {
-        const y = margin.top + index * rowGap + rowGap / 2;
-
-        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        label.setAttribute("x", "16");
-        label.setAttribute("y", String(y + 4));
-        label.setAttribute("font-size", "13");
-        label.textContent = point.label;
-        svg.append(label);
-
-        const ci = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        ci.setAttribute("x1", scale(point.lower));
-        ci.setAttribute("x2", scale(point.upper));
-        ci.setAttribute("y1", y);
-        ci.setAttribute("y2", y);
-        ci.setAttribute("stroke", point.pooled ? "#0d6b57" : "#4c5b6a");
-        ci.setAttribute("stroke-width", point.pooled ? "3" : "2");
-        svg.append(ci);
-
-        const marker = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        marker.setAttribute("x", String(scale(point.effect) - (point.pooled ? 7 : 5)));
-        marker.setAttribute("y", String(y - (point.pooled ? 7 : 5)));
-        marker.setAttribute("width", String(point.pooled ? 14 : 10));
-        marker.setAttribute("height", String(point.pooled ? 14 : 10));
-        marker.setAttribute("fill", point.pooled ? "#0d6b57" : "#223144");
-        marker.setAttribute("rx", "2");
-        svg.append(marker);
-
-        const val = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        val.setAttribute("x", String(width - margin.right + 6));
-        val.setAttribute("y", String(y + 4));
-        val.setAttribute("font-size", "12");
-        val.textContent = `${Number(point.effect).toFixed(2)} (${Number(point.lower).toFixed(2)}, ${Number(point.upper).toFixed(2)})`;
-        svg.append(val);
-      });
-
-      const ticks = [minX, reference, maxX].filter((value, idx, arr) => arr.indexOf(value) === idx);
-      ticks.forEach((tick) => {
-        const tickX = scale(tick);
-        const tickLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        tickLine.setAttribute("x1", tickX);
-        tickLine.setAttribute("x2", tickX);
-        tickLine.setAttribute("y1", String(height - margin.bottom));
-        tickLine.setAttribute("y2", String(height - margin.bottom + 8));
-        tickLine.setAttribute("stroke", "#46505c");
-        svg.append(tickLine);
-
-        const tickText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        tickText.setAttribute("x", String(tickX));
-        tickText.setAttribute("y", String(height - margin.bottom + 24));
-        tickText.setAttribute("text-anchor", "middle");
-        tickText.setAttribute("font-size", "12");
-        tickText.textContent = Number(tick).toFixed(2);
-        svg.append(tickText);
-      });
-
-      document.getElementById("plot-caption").textContent =
-        article.primary_plot?.caption ||
-        "Primary effect plot generated from embedded numeric values.";
-    }
-
-    function renderJson(article) {
-      const box = document.getElementById("json-box"); if(!box) return;
-      box.textContent = JSON.stringify(article, null, 2);
-    }
-
-    renderCore(E156_ARTICLE);
-    renderSearchStrategy(E156_ARTICLE);
-    renderPrisma(E156_ARTICLE);
-    renderIncludedPapers(E156_ARTICLE);
-    renderAnalysisExplorer(E156_ARTICLE);
-    renderNotes(E156_ARTICLE);
-    drawForest(E156_ARTICLE);
-    renderStudyTable(E156_ARTICLE);
-  </script>
+  };
+  seg.addEventListener("click", activate);
+  seg.addEventListener("keydown", e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();activate();}});
+  smap.appendChild(seg);
+});
+
+// ── Figures from assets ──
+const assets = D._assets || [];
+const imgAssets = assets.filter(a => /\.(png|jpg|jpeg|svg|gif|webp)$/i.test(a));
+if(imgAssets.length > 0){
+  document.getElementById("figures-section").style.display = "";
+  const grid = document.getElementById("fig-grid");
+  imgAssets.forEach(a => {
+    const card = document.createElement("div");
+    card.className = "fig-card";
+    const img = document.createElement("img");
+    img.src = "assets/" + a;
+    img.alt = a.replace(/[-_]/g," ").replace(/\.\w+$/,"");
+    img.loading = "lazy";
+    card.appendChild(img);
+    const cap = document.createElement("div");
+    cap.className = "fig-caption";
+    cap.textContent = a.replace(/[-_]/g," ").replace(/\.\w+$/,"");
+    card.appendChild(cap);
+    grid.appendChild(card);
+  });
+}
+
+// ── App link ──
+const htmlAssets = assets.filter(a => /\.html$/i.test(a) && a !== "index.html");
+if(htmlAssets.length > 0){
+  document.getElementById("app-section").style.display = "";
+  const btn = document.getElementById("app-btn");
+  btn.href = "assets/" + htmlAssets[0];
+  btn.rel = "noopener noreferrer";
+  btn.textContent = "Open Interactive App \u2192 " + htmlAssets[0].replace(/[-_]/g," ").replace(/\.html$/,"");
+}
+
+// ── Notes ──
+const notes = D.notes || {};
+const noteFields = [
+  ["Type", D.type], ["Primary Estimand", D.primary_estimand],
+  ["App", notes.app], ["Data", notes.data], ["Code", notes.code],
+  ["DOI", notes.doi], ["Version", notes.version || D.version],
+  ["Certainty", notes.certainty || D.certainty],
+  ["Validation", notes.validation || (D.validation||{}).status]
+];
+const ng = document.getElementById("notes-grid");
+noteFields.forEach(([label, val]) => {
+  if(!val) return;
+  const dt = document.createElement("dt");
+  dt.textContent = label;
+  ng.appendChild(dt);
+  const dd = document.createElement("dd");
+  if(/^https?:/.test(val)){
+    const a = document.createElement("a");
+    a.href = val; a.textContent = val; a.target = "_blank"; a.rel = "noopener";
+    dd.appendChild(a);
+  } else {
+    dd.textContent = val;
+  }
+  ng.appendChild(dd);
+});
+
+// ── References ──
+const refs = D.references || [];
+if(refs.length > 0){
+  document.getElementById("refs-section").style.display = "";
+  const ol = document.getElementById("refs-list");
+  refs.forEach(r => {
+    const li = document.createElement("li");
+    li.textContent = r;
+    ol.appendChild(li);
+  });
+}
+
+// ── Disclosure ──
+const disc = D._disclosure || "";
+if(disc){
+  document.getElementById("disclosure").style.display = "";
+  document.getElementById("disclosure-text").textContent = disc;
+}
+
+// ── Footer ──
+const wc = body.split(/\s+/).filter(Boolean).length;
+document.getElementById("wc").textContent = wc;
+document.getElementById("wc-check").textContent = wc === 156 ? "\u2713" : "\u2717 ("+wc+")";
+
+// ── Actions ──
+function copyBody(e){
+  navigator.clipboard.writeText(body).then(()=>{
+    const b=e&&e.target?e.target:document.querySelector(".actions button");
+    b.textContent="Copied!";setTimeout(()=>b.textContent="Copy",1500);
+  });
+}
+function downloadJSON(){
+  const b=new Blob([JSON.stringify(D,null,2)],{type:"application/json"});
+  const u=URL.createObjectURL(b);
+  const a=document.createElement("a");
+  a.href=u;a.download=(D.slug||"e156")+".json";
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(u);
+}
+</script>
 </body>
 </html>
