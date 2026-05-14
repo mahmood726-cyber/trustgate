@@ -1,4 +1,6 @@
 __pycache__/
+.pytest_cache/
+.pytest-tmp/
 
 # Sentinel pre-push hook output (auto-generated per session)
 STUCK_FAILURES.md

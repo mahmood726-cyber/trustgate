@@ -30,7 +30,11 @@ from trustgate_engine import (
     assign_quadrant, build_risk_register,
     run_pipeline, save_results,
 )
-from trustgate_engine import SCORES_CSV as ENGINE_SCORES_CSV
+from trustgate_engine import (
+    DOIS_CSV as ENGINE_DOIS_CSV,
+    SCORES_CSV as ENGINE_SCORES_CSV,
+    VERDICTS_CSV as ENGINE_VERDICTS_CSV,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -835,13 +839,20 @@ def test_summary_consistency(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_integration_real_data():
-    """T25: Full pipeline on real data (skip if SCORES_CSV not found)."""
-    import os
+    """T25: Full pipeline on real data when all external inputs are present."""
     from pathlib import Path
 
-    # Skip if the real scores file doesn't exist
-    if not Path(ENGINE_SCORES_CSV).exists():
-        pytest.skip(f"Real data not found: {ENGINE_SCORES_CSV}")
+    required_inputs = {
+        "scores": Path(ENGINE_SCORES_CSV),
+        "verdicts": Path(ENGINE_VERDICTS_CSV),
+        "dois": Path(ENGINE_DOIS_CSV),
+    }
+    missing_inputs = [
+        f"{name}={path}" for name, path in required_inputs.items()
+        if not path.exists() or path.stat().st_size == 0
+    ]
+    if missing_inputs:
+        pytest.skip("Real data input(s) not available: " + "; ".join(missing_inputs))
 
     results = run_pipeline(fetch_citations=False)
     merged = results["merged"]
