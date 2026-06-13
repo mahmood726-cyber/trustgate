@@ -34,7 +34,7 @@ def strip_suffix(dataset_id: str) -> str:
 
 
 def strip_review_pub_suffix(review_id: str) -> str:
-    """CD000028_pub4  â†’  CD000028"""
+    """CD000028_pub4  ->  CD000028"""
     return _REVIEW_PUB_RE.sub("", review_id)
 
 def first_condition(conditions_str: str) -> str:
